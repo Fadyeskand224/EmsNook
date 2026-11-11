@@ -1,0 +1,14 @@
+[
+ {
+  "id": "chandelier",
+  "file": "chandelier.webp",
+  "w": 300,
+  "h": 380
+ },
+ {
+  "id": "lamp-amber",
+  "file": "lamp-amber.webp",
+  "w": 100,
+  "h": 154
+ }
+]

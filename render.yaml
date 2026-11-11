@@ -1,0 +1,22 @@
+# Render Blueprint: one free web service running the API and the built app.
+# The database lives on Turso (free), because Render's free disk is wiped on every restart.
+services:
+  - type: web
+    name: emsnook
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build   # build tools are devDependencies, and NODE_ENV=production would skip them
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: TURSO_DATABASE_URL
+        sync: false   # paste this in the Render dashboard; never commit it
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      - key: GOOGLE_BOOKS_API_KEY
+        sync: false   # optional

@@ -1,0 +1,72 @@
+[
+ {
+  "id": "monstera",
+  "file": "monstera.webp",
+  "w": 163,
+  "h": 196,
+  "kind": "plant"
+ },
+ {
+  "id": "rubber",
+  "file": "rubber.webp",
+  "w": 117,
+  "h": 214,
+  "kind": "plant"
+ },
+ {
+  "id": "strelitzia",
+  "file": "strelitzia.webp",
+  "w": 121,
+  "h": 212,
+  "kind": "plant"
+ },
+ {
+  "id": "snake-terra",
+  "file": "snake-terra.webp",
+  "w": 118,
+  "h": 168,
+  "kind": "plant"
+ },
+ {
+  "id": "snake-grey",
+  "file": "snake-grey.webp",
+  "w": 77,
+  "h": 160,
+  "kind": "plant"
+ },
+ {
+  "id": "snake-white",
+  "file": "snake-white.webp",
+  "w": 116,
+  "h": 190,
+  "kind": "plant"
+ },
+ {
+  "id": "haworthia",
+  "file": "haworthia.webp",
+  "w": 76,
+  "h": 118,
+  "kind": "plant"
+ },
+ {
+  "id": "philo-dark",
+  "file": "philo-dark.webp",
+  "w": 82,
+  "h": 208,
+  "kind": "plant"
+ },
+ {
+  "id": "hang-philo",
+  "file": "hang-philo.webp",
+  "w": 108,
+  "h": 190,
+  "kind": "hang"
+ },
+ {
+  "id": "hang-pothos",
+  "file": "hang-pothos.webp",
+  "w": 136,
+  "h": 205,
+  "kind": "hang"
+ }
+]
