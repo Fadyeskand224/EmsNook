@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { runKey } from './world';
 import { rng, spineBands, spineCanvas, toTexture } from './textures';
+import { cmpVolume, seriesKey } from '../lib/series';
 
 const PALS = [
   '#6b2118', '#2a4331', '#1f2f4a', '#4a2c1a', '#1b1613', '#8a5a2e', '#5a1f2c', '#40472a', '#7a3a22', '#2c3640', '#a07a44', '#8c2b1f', '#33241a', '#3d5a6c', '#704a2a', '#c9b48a',
@@ -84,7 +85,9 @@ export function createBooks(world) {
     if (runs[ri].len - cur > 0.02) gaps.push([cur, runs[ri].len]);
     return gaps;
   };
-  const fits = (ri, x, w, skipId) => x >= -1e-6 && x + w <= runs[ri].len + 1e-6 && occ[ri].every((o) => o.id === skipId || x + w <= o.x0 + 1e-6 || x >= o.x1 - 1e-6);
+  // a few millimetres of give, so saved positions (rounded to the millimetre) never collide with their neighbours
+  const TOL = 0.003;
+  const fits = (ri, x, w, skipId) => x >= -TOL && x + w <= runs[ri].len + TOL && occ[ri].every((o) => o.id === skipId || x + w <= o.x0 + TOL || x >= o.x1 - TOL);
 
   function placeFillers() {
     fillers.forEach((m) => (m.count = 0));
@@ -185,21 +188,32 @@ export function createBooks(world) {
       }
     });
 
-    // saved places first, then everything else onto the first gap that is big enough
+    // saved places first, in the order they sit on the shelf, so a book keeps the spot its reader gave it. If its size changed
+    // (the real page count arrived, or a photo of the spine was added) it is nudged along the same shelf, never sent elsewhere.
     occ = runs.map(() => []);
     const loose = [];
-    entries.forEach((e) => {
+    const placedFirst = entries
+      .map((e) => ({ e, ri: e.book.place ? keyIndex.get(e.book.place.run) : undefined }))
+      .filter((p) => p.ri !== undefined)
+      .sort((A, B) => A.ri - B.ri || A.e.book.place.x - B.e.book.place.x || A.e.book.id - B.e.book.id);
+    const placedIds = new Set();
+    for (const { e, ri } of placedFirst) {
       const mesh = user.get(e.book.id);
-      const pl = e.book.place;
-      const ri = pl ? keyIndex.get(pl.run) : undefined;
       const { w, h } = mesh.userData;
-      if (ri !== undefined && h <= runs[ri].clear && fits(ri, Math.min(pl.x, runs[ri].len - w), w)) {
-        const x = Math.max(0, Math.min(pl.x, runs[ri].len - w));
-        occ[ri].push({ id: e.book.id, x0: x, x1: x + w + GAP });
-        settle(mesh, ri, x);
-        mesh.userData.hasPlace = true;
-      } else loose.push(e);
-    });
+      if (h > runs[ri].clear) continue;
+      let x = Math.max(0, Math.min(e.book.place.x, runs[ri].len - w));
+      if (!fits(ri, x, w)) {
+        const cands = [];
+        for (const o of occ[ri]) cands.push(o.x1, o.x0 - w - GAP);
+        x = cands.filter((c) => fits(ri, c, w)).sort((a, b) => Math.abs(a - x) - Math.abs(b - x))[0];
+        if (x === undefined) continue;
+      }
+      occ[ri].push({ id: e.book.id, x0: x, x1: x + w + GAP });
+      settle(mesh, ri, x);
+      mesh.userData.hasPlace = true;
+      placedIds.add(e.book.id);
+    }
+    entries.forEach((e) => { if (!placedIds.has(e.book.id)) loose.push(e); });
     const auto = [];
     const done0 = new Set(entries.filter((e) => !loose.includes(e)).map((e) => e.book.id));
     for (const e of loose) {
@@ -208,10 +222,9 @@ export function createBooks(world) {
       let done = false;
       // a book from a series goes next to its series-mates, in volume order, when there is room beside them
       if (e.book.series) {
-        const mates = entries.filter((o) => o.book.id !== e.book.id && o.book.series === e.book.series && done0.has(o.book.id)).map((o) => user.get(o.book.id));
-        mates.sort((a, b) => (a.userData.book.seriesNo ?? 0) - (b.userData.book.seriesNo ?? 0));
-        const mine = e.book.seriesNo ?? Infinity;
-        const before = mates.filter((m) => (m.userData.book.seriesNo ?? 0) <= mine);
+        const mates = entries.filter((o) => o.book.id !== e.book.id && o.book.series && seriesKey(o.book.series) === seriesKey(e.book.series) && done0.has(o.book.id)).map((o) => user.get(o.book.id));
+        mates.sort((a, b) => cmpVolume(a.userData.book, b.userData.book));
+        const before = mates.filter((m) => cmpVolume(m.userData.book, e.book) <= 0);
         const anchor = before.length ? before[before.length - 1] : null;
         const tries = [];
         if (anchor) tries.push([anchor.userData.run, anchor.userData.x + anchor.userData.w + GAP]);
@@ -265,8 +278,9 @@ export function createBooks(world) {
       }
       while (k < order.length && (cur + w > runs[order[k]].len || h > runs[order[k]].clear)) { k += 1; cur = 0; }
       if (k >= order.length) break;
-      out.push({ id: e.book.id, run: runKey(runs[order[k]]), x: Math.round(cur * 1000) / 1000 });
-      cur += w + GAP;
+      const x = Math.ceil(cur * 1000) / 1000; // rounded up, so saved neighbours can never overlap
+      out.push({ id: e.book.id, run: runKey(runs[order[k]]), x });
+      cur = x + w + GAP;
     }
     return out;
   }

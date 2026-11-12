@@ -6,6 +6,7 @@ import { coverCanvas, toTexture } from './textures';
 import { createBooks } from './books3d';
 import { spineDesign } from '../lib/spine';
 import { percentOf } from '../lib/progress';
+import { organizeOrder } from '../lib/series';
 import { shelfSort } from '../lib/shelfOrder';
 import { usePalettes } from '../lib/coverColors';
 
@@ -140,6 +141,7 @@ export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onP
       S.sig = sig;
       const { auto } = S.booksLayer.setBooks(entries);
       // books that had no place get one now, and keep it
+      entries.forEach((e) => { if (e.book.place) S.saving.delete(e.book.id); });
       const fresh = auto.filter((a2) => !S.saving.has(a2.id));
       if (fresh.length) { fresh.forEach((a2) => S.saving.add(a2.id)); latest.current.onPlaceMany?.(fresh); }
     };
@@ -243,16 +245,10 @@ export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onP
       flash('Looking up your series…');
       try { await latest.current.onEnsureSeries?.(); } catch { /* arrange with what is known */ }
       await new Promise((r) => setTimeout(r, 150));
-      const list = [...latest.current.sorted];
-      const last = (b) => (b.authors[0] || '').trim().split(/\s+/).slice(-1)[0].toLowerCase();
-      const first = new Map();
-      list.forEach((b) => { if (b.series && !first.has(b.series)) first.set(b.series, last(b)); });
-      const key = (b) => [b.series ? first.get(b.series) : last(b), b.series ? b.series.toLowerCase() : b.title.toLowerCase(), b.series ? (b.seriesNo ?? 999) : 0, b.title.toLowerCase()];
-      list.sort((a, b) => { const A = key(a); const B = key(b); for (let i = 0; i < 4; i++) { if (A[i] < B[i]) return -1; if (A[i] > B[i]) return 1; } return 0; });
-      const places = S.booksLayer.arrange(list.map((b) => ({ book: b, series: !!b.series, group: b.series || `#${b.id}` })));
+      const { ordered, seriesCount } = organizeOrder(latest.current.sorted);
+      const places = S.booksLayer.arrange(ordered);
       if (places.length) latest.current.onPlaceMany?.(places);
-      const sets = new Set(list.filter((b) => b.series).map((b) => b.series)).size;
-      flash(sets ? `Arranged by author. ${sets} ${sets === 1 ? 'series' : 'series'} kept together, in order.` : 'Arranged by author. No series found in your books yet.');
+      flash(seriesCount ? `Arranged by series, in release order (${seriesCount} ${seriesCount === 1 ? 'series' : 'series'}). The rest follow, by author.` : 'No series found in your books yet. Arranged by author instead.');
     };
     api.current.nav = (dir) => {
       if (!S.browse || S.tween?.lock) return;
