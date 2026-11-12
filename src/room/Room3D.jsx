@@ -136,7 +136,7 @@ export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onP
       if (!S.booksLayer) return;
       const base = latest.current.sorted;
       const entries = base.map((b) => ({ book: b, design: spineDesign(b), pct: b.status === 'reading' && b.pages ? percentOf(b) : null }));
-      const sig = entries.map((e) => `${e.book.id}:${e.design.bg}:${e.pct}:${e.book.status}:${e.design.photo || ''}:${e.book.place ? `${e.book.place.run}@${e.book.place.x}` : '-'}`).join('|');
+      const sig = entries.map((e) => `${e.book.id}:${e.design.bg}:${e.pct}:${e.book.status}:${e.design.photo || ''}:${e.design.width}x${e.design.height}:${e.book.place ? `${e.book.place.run}@${e.book.place.x}` : '-'}`).join('|');
       if (!force && sig === S.sig) return;
       S.sig = sig;
       const { auto } = S.booksLayer.setBooks(entries);

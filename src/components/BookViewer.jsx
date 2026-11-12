@@ -14,7 +14,7 @@ function bookWidth() {
   return Math.round(vw < 760 ? Math.min(260, vw * 0.6) : Math.max(220, Math.min(310, vw * 0.27)));
 }
 
-export default function BookViewer({ book, origin, onClose, onStatus, onRate, onRemove, onSpine, onProgress }) {
+export default function BookViewer({ book, origin, onClose, onStatus, onRate, onRemove, onSpine, onSize, onProgress }) {
   const design = spineDesign(book);
   const [W, setW] = useState(bookWidth);
   const [flipped, setFlipped] = useState(false);
@@ -171,6 +171,8 @@ export default function BookViewer({ book, origin, onClose, onStatus, onRate, on
             </button>
           )}
 
+          {book.status !== 'want' && onSize && <SizeControls book={book} onSize={onSize} />}
+
           {confirmRemove ? (
             <div className="confirm">
               <span>Remove this book from your nook?</span>
@@ -183,6 +185,28 @@ export default function BookViewer({ book, origin, onClose, onStatus, onRate, on
         </div>
       </div>
       {editingSpine && <SpineEditor book={book} onClose={() => setEditingSpine(false)} onSaved={onSpine} />}
+    </div>
+  );
+}
+
+// How thick and how tall this book stands on the shelf. Saved a moment after the slider stops moving.
+function SizeControls({ book, onSize }) {
+  const [thick, setThick] = useState(book.thick ?? 1);
+  const [tall, setTall] = useState(book.tall ?? 1);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const save = (patch) => { clearTimeout(timer.current); timer.current = setTimeout(() => onSize(patch), 350); };
+  const changed = thick !== 1 || tall !== 1;
+  return (
+    <div className="size-controls">
+      <h4>Size on the shelf</h4>
+      <label>Thickness
+        <input type="range" min="0.5" max="2.2" step="0.05" value={thick} onChange={(e) => { const v = Number(e.target.value); setThick(v); save({ thick: v === 1 ? null : v }); }} />
+      </label>
+      <label>Height
+        <input type="range" min="0.6" max="1.25" step="0.05" value={tall} onChange={(e) => { const v = Number(e.target.value); setTall(v); save({ tall: v === 1 ? null : v }); }} />
+      </label>
+      {changed && <button className="link-btn" onClick={() => { clearTimeout(timer.current); setThick(1); setTall(1); onSize({ thick: null, tall: null }); }}>Reset to normal size</button>}
     </div>
   );
 }

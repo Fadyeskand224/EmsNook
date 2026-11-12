@@ -46,7 +46,9 @@ export function spineDesign(book) {
     photo = `/api/library/${book.id}/spine?v=${book.spineV}`;
     width = Math.round(clampN((height * book.spineW) / book.spineH, 18, 84)); // a real spine keeps its real proportions
   }
-  return { bg, fg, accent, width, height, photo, font: FONTS[(h >> 13) % FONTS.length], style: STYLES[(h >> 9) % STYLES.length], h };
+  width = Math.round(clampN(width * (book.thick ?? 1), 14, 110)); // the reader's own size tweaks
+  const tall = Math.round(height * (book.tall ?? 1));
+  return { bg, fg, accent, width, height: tall, photo, font: FONTS[(h >> 13) % FONTS.length], style: STYLES[(h >> 9) % STYLES.length], h };
 }
 
 /** Title size that fits the spine, in design pixels. Long titles with several words wrap onto two lines instead of shrinking away. */

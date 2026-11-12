@@ -143,9 +143,9 @@ export function createBooks(world) {
     for (const [id, mesh] of user) if (!ids.has(id)) { group.remove(mesh); mesh.geometry.dispose(); user.delete(id); }
     entries.forEach((e) => {
       const d = e.design;
-      const w = Math.max(0.03, Math.min(0.085, d.width * 0.0013));
-      const h = Math.min(0.33, d.height * 0.00165);
-      const sig = `${d.bg}|${d.fg}|${d.accent}|${d.style}|${d.font}|${e.pct}|${d.photo || ''}`;
+      const w = Math.max(0.03, Math.min(0.17, d.width * 0.0013));
+      const h = Math.min(0.335, d.height * 0.00165);
+      const sig = `${d.bg}|${d.fg}|${d.accent}|${d.style}|${d.font}|${e.pct}|${d.photo || ''}|${w}|${h}`;
       let mesh = user.get(e.book.id);
       if (!mesh) {
         const cover = new THREE.Color(d.bg).multiplyScalar(0.8);

@@ -204,6 +204,7 @@ export default function App() {
           origin={viewer.origin}
           onClose={() => setViewer(null)}
           onSpine={put}
+          onSize={(patch) => updateBook(current.id, patch).then(put).catch((e) => say(e.message))}
           onProgress={async (patch) => {
             const before = percentOf(current);
             try {

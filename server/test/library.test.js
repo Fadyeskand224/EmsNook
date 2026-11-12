@@ -236,3 +236,15 @@ test('series are found from catalog lines, subjects and titles, and saved with t
   assert.equal(org.status, 200);
   assert.equal(org.json.books[0].series, 'Middle-earth');
 });
+
+test('a book can be made thicker, thinner, taller or shorter on the shelf, within sensible limits', async () => {
+  const cookie = await signup('size@example.com');
+  const search = (await call('/books/search?q=the hobbit', { cookie })).json.results[0];
+  const id = (await call('/library', { method: 'POST', cookie, body: { book: search, status: 'read' } })).json.book.id;
+  const patch = (body) => call(`/library/${id}`, { method: 'PATCH', cookie, body });
+  const ok = await patch({ thick: 1.5, tall: 0.8 });
+  assert.equal(ok.json.book.thick, 1.5);
+  assert.equal(ok.json.book.tall, 0.8);
+  for (const bad of [{ thick: 0.1 }, { thick: 5 }, { tall: 2 }, { tall: 'big' }]) assert.equal((await patch(bad)).status, 400);
+  assert.equal((await patch({ thick: null, tall: null })).json.book.thick, null);
+});

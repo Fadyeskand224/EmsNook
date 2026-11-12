@@ -33,6 +33,8 @@ const toBook = (r) => ({
   series: r.series ?? null,
   seriesNo: r.series_no ?? null,
   place: r.place ? JSON.parse(r.place) : null,
+  thick: r.thick ?? null,
+  tall: r.tall ?? null,
   year: r.year,
   description: r.description,
   subjects: r.subjects ? JSON.parse(r.subjects) : [],
@@ -325,7 +327,7 @@ export function createApp({ db, prod = false, distDir = null, allowedOrigins = [
     const id = idOf(req);
     const row = id && (await owned(req, id));
     if (!row) return res.status(404).json({ error: 'Book not found.' });
-    const { status, myRating, currentPage, pages, place } = req.body || {};
+    const { status, myRating, currentPage, pages, place, thick, tall } = req.body || {};
     const sets = [];
     const args = [];
     if (status !== undefined) {
@@ -341,6 +343,13 @@ export function createApp({ db, prod = false, distDir = null, allowedOrigins = [
       if (myRating !== null && !(Number.isInteger(myRating) && myRating >= 1 && myRating <= 5)) return res.status(400).json({ error: 'Rate from 1 to 5.' });
       sets.push('my_rating = ?');
       args.push(myRating);
+    }
+    // How fat and how tall the book stands on the shelf, as multiples of its normal size (null puts it back to normal).
+    for (const [key, col, lo, hi] of [[thick, 'thick', 0.5, 2.2], [tall, 'tall', 0.6, 1.25]]) {
+      if (key === undefined) continue;
+      if (key !== null && !(typeof key === 'number' && Number.isFinite(key) && key >= lo && key <= hi)) return res.status(400).json({ error: 'That size is not available.' });
+      sets.push(`${col} = ?`);
+      args.push(key === null ? null : Math.round(key * 100) / 100);
     }
     if (place !== undefined) {
       const v = validatePlace(place);

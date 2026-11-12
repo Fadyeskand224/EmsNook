@@ -118,6 +118,11 @@ export async function openDb({ url, authToken } = {}) {
     await client.execute('ALTER TABLE books ADD COLUMN series_checked INTEGER');
   }
 
+  if (!bookCols.includes('thick')) {
+    await client.execute('ALTER TABLE books ADD COLUMN thick REAL');
+    await client.execute('ALTER TABLE books ADD COLUMN tall REAL');
+  }
+
   const rowsOf = (r) => r.rows.map((row) => Object.fromEntries(r.columns.map((c) => [c, row[c]])));
 
   return {
