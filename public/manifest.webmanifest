@@ -4,7 +4,7 @@
   "description": "A cozy corner for your reading life.",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#150e09",
   "theme_color": "#1a110b",
   "icons": [

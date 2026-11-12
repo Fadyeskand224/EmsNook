@@ -31,6 +31,14 @@ export default function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const saveTimer = useRef(null);
   const [view, setView] = useState(() => (localStorage.getItem('emsnook-view') || (webglAvailable() ? 'room' : 'classic')));
+  const [compact, setCompact] = useState(() => matchMedia('(max-width: 820px), (pointer: coarse) and (max-height: 520px)').matches);
+  const [drawer, setDrawer] = useState(false);
+  useEffect(() => {
+    const mq = matchMedia('(max-width: 820px), (pointer: coarse) and (max-height: 520px)');
+    const on = () => setCompact(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
   const chooseView = (v) => { setView(v); localStorage.setItem('emsnook-view', v); };
 
   const say = useCallback((msg) => {
@@ -149,9 +157,44 @@ export default function App() {
   const wantCount = books.filter((b) => b.status === 'want').length;
   const shelfCount = books.length - wantCount;
 
+  const immersive = compact && tab === 'shelf' && view === 'room' && webglAvailable();
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  const canFull = !standalone && document.fullscreenEnabled;
+  const toggleFull = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.({ navigationUI: 'hide' })).catch(() => {});
+  const closeDrawer = () => setDrawer(false);
+
+  const nookMenu = (
+    <>
+      <h4>Your nook</h4>
+      <div className="rd-grid">
+        <button onClick={() => { closeDrawer(); setSearching(true); }}>+ Add a book</button>
+        <button onClick={() => { closeDrawer(); setScanning(true); }}>Scan a barcode</button>
+        <button onClick={() => { closeDrawer(); setTab('want'); }}>To Read <b>{wantCount}</b></button>
+        {canFull && <button onClick={() => { closeDrawer(); toggleFull(); }}>Full screen</button>}
+      </div>
+      <div className="rd-foot">
+        <span>{user.name}</span>
+        <button onClick={() => downloadMyData().catch((e) => say(e.message))}>Download my data</button>
+        <button onClick={() => { closeDrawer(); setCredits(true); }}>Photo credits</button>
+        <button onClick={leave}>Log out</button>
+      </div>
+    </>
+  );
+
   return (
-    <div className="app">
+    <div className={`app ${immersive ? 'immersive' : ''}`}>
       <header className="topbar">
+        {immersive ? (
+          <>
+            <a className="brand" href="/" onClick={(e) => e.preventDefault()}><img src="/icon.svg" alt="" width="26" height="26" />EmsNook</a>
+            <div className="top-actions">
+              <button className="btn btn-ghost scan-btn" onClick={() => setSearching(true)} aria-label="Add a book">+</button>
+              <button className={`btn btn-ghost burger ${drawer ? 'on' : ''}`} onClick={() => setDrawer(!drawer)} aria-label="Menu" aria-expanded={drawer}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">{drawer ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}</svg>
+              </button>
+            </div>
+          </>
+        ) : (<>
         <a className="brand" href="/" onClick={(e) => e.preventDefault()}><img src="/icon.svg" alt="" width="30" height="30" />EmsNook</a>
         <nav className="tabs" aria-label="Sections">
           <button className={tab === 'shelf' ? 'on' : ''} onClick={() => setTab('shelf')}>My Shelf <b>{shelfCount}</b></button>
@@ -172,18 +215,19 @@ export default function App() {
             )}
           </div>
         </div>
+        </>)}
       </header>
 
       <main>
         {tab === 'shelf'
           ? (view === 'room' && webglAvailable()
-            ? <Suspense fallback={<div className="room3d room-loading"><div className="spinner" aria-label="Opening the library" /></div>}><Room3D books={books} hiddenId={viewer?.id} settings={settings} onOpen={openViewer} onFind={() => setSearching(true)} onCustomize={() => setCustomizing(true)} onPlace={placeBook} onPlaceMany={placeMany} onEnsureSeries={ensureSeries} onClassic={() => chooseView('classic')} /></Suspense>
+            ? <Suspense fallback={<div className="room3d room-loading"><div className="spinner" aria-label="Opening the library" /></div>}><Room3D books={books} hiddenId={viewer?.id} settings={settings} onOpen={openViewer} onFind={() => setSearching(true)} onCustomize={() => setCustomizing(true)} onPlace={placeBook} onPlaceMany={placeMany} onEnsureSeries={ensureSeries} onClassic={() => chooseView('classic')} immersive={immersive} menuOpen={drawer} onMenuClose={closeDrawer} menuExtra={nookMenu} /></Suspense>
             : <Shelf books={books} hiddenId={viewer?.id} settings={settings} onOpen={openViewer} onFind={() => setSearching(true)} onCustomize={() => { setCustomizing(true); document.querySelector('.shelf-room')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} onReorder={reorder} onRoom={webglAvailable() ? () => chooseView('room') : null} />)
           : <Wishlist books={books} onOpen={openViewer} onStatus={move} onFind={() => setSearching(true)} />}
       </main>
 
       {customizing && tab === 'shelf' && <Customize settings={settings} room={view === 'room' && webglAvailable()} onChange={changeLook} onClose={() => setCustomizing(false)} />}
-      <nav className="tabbar" aria-label="Sections">
+      {!immersive && <nav className="tabbar" aria-label="Sections">
         <button className={tab === 'shelf' ? 'on' : ''} onClick={() => setTab('shelf')}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="5" width="4" height="12" rx="1" /><rect x="9.5" y="3" width="4.5" height="14" rx="1" /><path d="m16 6.5 3.4-.9 2.6 10.4-3.4.9z" /><path d="M2.5 20.5h19" /></svg>
           Shelf <b>{shelfCount}</b>
@@ -193,7 +237,7 @@ export default function App() {
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 3.5h12a1 1 0 0 1 1 1V21l-7-4-7 4V4.5a1 1 0 0 1 1-1z" /></svg>
           To Read <b>{wantCount}</b>
         </button>
-      </nav>
+      </nav>}
 
       {scanning && <Suspense fallback={null}><ScanSheet library={books} onAdd={add} onClose={() => setScanning(false)} onSearch={() => { setScanning(false); setSearching(true); }} /></Suspense>}
       {searching && <SearchSheet library={books} onAdd={add} onClose={() => setSearching(false)} />}

@@ -29,7 +29,7 @@ function walkable(level, x, z) {
   return !OBST.some(([ox, oz, r]) => (x - ox) ** 2 + (z - oz) ** 2 < r * r);
 }
 
-export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onPlaceMany, onEnsureSeries, onScan, onFind, onCustomize, onClassic }) {
+export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onPlaceMany, onEnsureSeries, onScan, onFind, onCustomize, onClassic, immersive = false, menuOpen = false, onMenuClose, menuExtra = null }) {
   const wrap = useRef(null);
   const canvasRef = useRef(null);
   const host = useRef(null);
@@ -673,12 +673,35 @@ export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onP
   return (
     <section className={`room3d ${dragging ? 'dragging' : ''}`} ref={wrap} aria-label="Your library, in 3D">
       <div className="r-canvas" ref={host} />
-      <div className="r-top">
-        <button className="chip-toggle" onClick={() => api.current.organize()}>Organize</button>
-        <button className="chip-toggle" onClick={() => api.current.S.world.toggleChandelier()}>Chandelier</button>
-        <button className="chip-toggle customize" onClick={onCustomize}>Customize</button>
-        <button className="chip-toggle" onClick={onClassic}>Classic view</button>
-      </div>
+      {!immersive && (
+        <div className="r-top">
+          <button className="chip-toggle" onClick={() => api.current.organize()}>Organize</button>
+          <button className="chip-toggle" onClick={() => api.current.S.world.toggleChandelier()}>Chandelier</button>
+          <button className="chip-toggle customize" onClick={onCustomize}>Customize</button>
+          <button className="chip-toggle" onClick={onClassic}>Classic view</button>
+        </div>
+      )}
+      {immersive && menuOpen && (
+        <>
+          <div className="r-scrim" onClick={onMenuClose} />
+          <aside className="r-drawer" aria-label="Library menu">
+            <h4>The room</h4>
+            <div className="rd-grid">
+              <button onClick={() => { onMenuClose(); api.current.organize(); }}>Organize</button>
+              <button onClick={() => { onMenuClose(); api.current.S.world.toggleChandelier(); }}>Chandelier</button>
+              <button onClick={() => { onMenuClose(); onCustomize(); }}>Customize</button>
+              <button onClick={() => { onMenuClose(); onClassic(); }}>Classic view</button>
+            </div>
+            <h4>Walk to</h4>
+            <div className="rd-grid">
+              {[['entrance', 'Entrance'], ['mine', 'My books'], ['upper', 'Top shelves'], ['desk', 'Desk'], ['fire', 'Fireplace'], ['gallery', level === 'upper' ? 'Climb down' : 'Gallery']].map(([k, label]) => (
+                <button key={k} onClick={() => { onMenuClose(); stop(k); }}>{label}</button>
+              ))}
+            </div>
+            {menuExtra}
+          </aside>
+        </>
+      )}
       {hint && (
         <div className="r-hint" role="note">
           <b>Step into the library.</b>
@@ -707,14 +730,14 @@ export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onP
       {books.filter((b) => b.status !== 'want').length === 0 && (
         <div className="r-empty"><h3>Your shelves are waiting</h3><p>Add a book you’re reading, or one you’ve finished, and it will appear on the shelf by the door.</p><button className="btn btn-primary" onClick={onFind}>Find a book</button></div>
       )}
-      <div className="r-stops" role="group" aria-label="Go to">
+      {!immersive && <div className="r-stops" role="group" aria-label="Go to">
         <button onClick={() => stop('entrance')}>Entrance</button>
         <button onClick={() => stop('mine')}>My books</button>
         <button onClick={() => stop('upper')}>Top shelves</button>
         <button onClick={() => stop('desk')}>Desk</button>
         <button onClick={() => stop('fire')}>Fireplace</button>
         <button onClick={() => stop('gallery')}>{level === 'upper' ? 'Climb down' : 'Gallery'}</button>
-      </div>
+      </div>}
       {touch && (
         <div className="r-joy" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); joy(e, true); }} onPointerMove={(e) => e.buttons && joy(e, true)} onPointerUp={(e) => joy(e, false)} onPointerCancel={(e) => joy(e, false)} aria-hidden="true"><i /></div>
       )}

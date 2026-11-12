@@ -687,3 +687,40 @@ body.dragging-book .tip { display: none; }
 .size-controls h4 { margin: 0; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; }
 .size-controls label { display: grid; gap: 2px; font-size: 0.9rem; }
 .size-controls input[type="range"] { width: 100%; accent-color: var(--amber); min-height: 32px; }
+
+/* ───────── full-screen room on phones (portrait and landscape) ───────── */
+html:has(.app.immersive), html:has(.app.immersive) body { overflow: hidden; overscroll-behavior: none; }
+.app.immersive main { padding: 0; }
+.app.immersive .room3d { position: fixed; inset: 0; height: auto; border-radius: 0; box-shadow: none; z-index: 1; }
+.app.immersive .topbar { position: fixed; left: 0; right: 0; top: 0; z-index: 25; gap: 8px; padding: calc(var(--safe-t) + 6px) max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left)); background: linear-gradient(180deg, rgba(15, 9, 5, 0.82), rgba(15, 9, 5, 0)); border-bottom: 0; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
+.app.immersive .topbar > *, .app.immersive .topbar .top-actions > * { pointer-events: auto; }
+.app.immersive .brand { font-size: 18px; }
+.app.immersive .top-actions { gap: 8px; }
+.app.immersive .top-actions .btn { min-height: 38px; min-width: 38px; padding: 0 12px; font-size: 20px; line-height: 1; border-radius: 999px; background: rgba(20, 12, 7, 0.62); border: 1px solid var(--line); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: inline-grid; place-items: center; }
+.app.immersive .top-actions .burger.on { border-color: var(--amber); color: var(--amber-hi); }
+.app.immersive .r-hint { bottom: auto; top: calc(var(--safe-t) + 56px); width: min(520px, calc(100% - 48px)); }
+.app.immersive .r-held { top: calc(var(--safe-t) + 52px); }
+.app.immersive .r-tip { bottom: calc(18px + var(--safe-b)); }
+.app.immersive .r-joy { left: calc(18px + env(safe-area-inset-left, 0px)); bottom: calc(22px + var(--safe-b)); }
+.app.immersive .r-dpad { right: calc(14px + env(safe-area-inset-right, 0px)); bottom: calc(22px + var(--safe-b)); }
+.app.immersive .toast { bottom: calc(20px + var(--safe-b)); }
+.r-scrim { position: absolute; inset: 0; z-index: 4; background: rgba(8, 4, 2, 0.35); }
+.r-drawer { position: absolute; z-index: 5; top: calc(var(--safe-t) + 52px); right: max(10px, env(safe-area-inset-right)); bottom: calc(10px + var(--safe-b)); width: min(340px, calc(100% - 20px)); overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px; border-radius: 20px; background: rgba(22, 14, 8, 0.94); border: 1px solid var(--line); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); animation: drawer-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both; touch-action: pan-y; }
+@keyframes drawer-in { from { transform: translateX(24px); opacity: 0; } }
+.r-drawer h4 { margin: 14px 0 8px; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.6; }
+.r-drawer h4:first-child { margin-top: 0; }
+.rd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rd-grid button { min-height: 46px; padding: 8px 10px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.05); color: inherit; font-weight: 700; font-size: 0.9rem; }
+.rd-grid button:active { background: rgba(224, 164, 88, 0.3); }
+.rd-grid button b { margin-left: 4px; font-size: 0.75rem; opacity: 0.7; }
+.rd-foot { display: grid; gap: 2px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+.rd-foot span { font-size: 0.8rem; opacity: 0.6; padding: 4px 2px; }
+.rd-foot button { text-align: left; min-height: 40px; padding: 6px 2px; background: none; border: 0; color: var(--muted); font-size: 0.9rem; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .app.immersive .r-hint { top: calc(var(--safe-t) + 46px); }
+  .r-drawer { width: min(540px, 72%); }
+  .rd-grid { grid-template-columns: repeat(3, 1fr); }
+  .rd-grid button { min-height: 40px; }
+  .r-joy { width: 96px; height: 96px; }
+  .app.immersive .r-dpad { width: 120px; height: 120px; }
+}
