@@ -240,12 +240,12 @@ export function buildOutside(timeId) {
   }
 
   // ───────── materials for the buildings ─────────
-  const stoneMat = track(new THREE.MeshStandardMaterial({ color: C('#fff3da', T.tint * 1.7), roughness: 0.92 }));
+  const stoneMat = track(new THREE.MeshStandardMaterial({ color: C('#cfcac1', T.tint * 1.55), roughness: 0.92 }));
   loadTex('stone.webp', { srgb: true }).then((t) => { const c = t.clone(); c.needsUpdate = true; stoneMat.map = c; stoneMat.needsUpdate = true; }).catch(() => {});
-  const darkStone = track(new THREE.MeshStandardMaterial({ color: C('#b9ad96', T.tint), roughness: 0.95 }));
-  const roofTeal = track(new THREE.MeshStandardMaterial({ color: C('#2f8f9a', T.tint), roughness: 0.55, metalness: 0.15 }));
-  const roofBlue = track(new THREE.MeshStandardMaterial({ color: C('#2f55a8', T.tint), roughness: 0.55, metalness: 0.15 }));
-  const gold = track(new THREE.MeshStandardMaterial({ color: C('#f2c24a', T.tint), emissive: C('#7a5812', T.tint), roughness: 0.35, metalness: 0.35 }));
+  const darkStone = track(new THREE.MeshStandardMaterial({ color: C('#85817b', T.tint), roughness: 0.96 }));
+  const roofTeal = track(new THREE.MeshStandardMaterial({ color: C('#3b434e', T.tint), roughness: 0.62, metalness: 0.12 }));
+  const roofBlue = track(new THREE.MeshStandardMaterial({ color: C('#2b3138', T.tint), roughness: 0.62, metalness: 0.12 }));
+  const gold = track(new THREE.MeshStandardMaterial({ color: C('#35312d', T.tint), roughness: 0.5, metalness: 0.45 }));
   const woodMat = track(new THREE.MeshStandardMaterial({ color: C('#6a4a34', T.tint), roughness: 0.9 }));
   const uvScale = (g, sx, sy) => { const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * sx, uv.getY(i) * sy); return g; };
   const TILE = 14;
@@ -279,18 +279,14 @@ export function buildOutside(timeId) {
   const crenel = (x, y, z, yaw) => battle.push([x, y, z, yaw]);
   const crenRing = (cx, cz, r, y, n) => { for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; crenel(cx + Math.cos(a) * r, y, cz + Math.sin(a) * r, -a); } };
   const crenLine = (x0, z0, x1, z1, y, step = 2.6) => { const len = Math.hypot(x1 - x0, z1 - z0); const n = Math.max(2, Math.floor(len / step)); for (let i = 0; i <= n; i++) { const t = i / n; crenel(lerp(x0, x1, t), y, lerp(z0, z1, t), -Math.atan2(z1 - z0, x1 - x0)); } };
-  const flagList = [];
-  const flag = (x, y, z, color) => flagList.push({ x, y, z, color });
   const spire = (x, z, r, h, roofH, roofMat, base = 0, opts = {}) => {
     put(mkCyl(r, h, 20), stoneMat, x, base + h / 2, z);
     for (const f of [0.28, 0.6]) put(mkCyl(r * 1.06, 0.7, 20), darkStone, x, base + h * f, z);
     put(mkCyl(r * 1.22, 1.4, 20), darkStone, x, base + h - 0.7, z);
     crenRing(x, z, r * 1.18, base + h + 0.3, Math.round(r * 5));
     put(mkCyl(r * 1.0, 2.2, 20), stoneMat, x, base + h + 1.1, z);
-    put(mkCone(r * 1.34, roofH, 20), roofMat, x, base + h + 2.2 + roofH / 2 - 0.3, z);
-    put(track(new THREE.SphereGeometry(0.55, 10, 8)), gold, x, base + h + 2.2 + roofH - 0.2, z);
-    put(mkCone(0.3, 4.5, 6), gold, x, base + h + 2.2 + roofH + 2.2, z);
-    if (opts.flag) flag(x, base + h + 2.2 + roofH + 5.5, z, opts.flag);
+    put(mkCone(r * 1.3, roofH * 1.55, 20), roofMat, x, base + h + 2.2 + roofH * 0.775 - 0.3, z);
+    put(mkCone(0.3, 5, 6), gold, x, base + h + 2.2 + roofH * 1.55 + 2, z);
     for (let a = 0; a < 5; a++) for (let y = 8; y < h - 5; y += 9) windows.push([x + Math.cos(a * 1.2566 + 0.4) * (r + 0.1), base + y, z + Math.sin(a * 1.2566 + 0.4) * (r + 0.1), -(a * 1.2566 + 0.4) + Math.PI / 2, 1.5, 3.0]);
   };
   // a battered stone plinth that runs down the cliff face to the ground, so the castle grows out of the rock
@@ -299,58 +295,56 @@ export function buildOutside(timeId) {
   put(mkCyl(54, 3, 48), stoneMat, 0, 6, 0);
   crenRing(0, 0, 53.4, 8, 84);
   for (let i = 0; i < 26; i++) { const a = (i / 26) * Math.PI * 2; put(mkBox(3.2, 12, 4.4), darkStone, Math.cos(a) * 56, 0, Math.sin(a) * 56).rotation.y = -a; }
-  const FLAG = ['#c8283a', '#f2c24a', '#2d5cc8'];
   put(mkBox(54, 24, 18), stoneMat, 0, 20, 14);
   const gable = new THREE.Shape(); gable.moveTo(-10.5, 0); gable.lineTo(10.5, 0); gable.lineTo(0, 15); gable.closePath();
   const gg = track(new THREE.ExtrudeGeometry(gable, { depth: 58, bevelEnabled: false })); gg.translate(0, 0, -29);
   put(gg, roofBlue, 0, 32, 14).rotation.y = Math.PI / 2;
   put(mkBox(58.4, 0.9, 0.7), gold, 0, 47.2, 14);
-  for (let i = -4; i <= 4; i++) { windows.push([i * 5.6, 22, 23.15, 0, 3.4, 10]); put(mkBox(1.6, 15, 4.6), stoneMat, i * 5.6 + 2.8, 17, 25); const cap = put(mkCone(1.5, 4, 4), roofBlue, i * 5.6 + 2.8, 26, 25.5); cap.rotation.y = Math.PI / 4; }
+  for (let i = -4; i <= 4; i++) { windows.push([i * 5.6, 22, 23.15, 0, 3.4, 10]); put(mkBox(1.6, 15, 4.6), stoneMat, i * 5.6 + 2.8, 17, 25); const cap = put(mkCone(1.5, 8, 4), roofBlue, i * 5.6 + 2.8, 28, 25.5); cap.rotation.y = Math.PI / 4; }
   for (let i = -3; i <= 3; i++) { put(mkBox(4.4, 5.6, 4.6), stoneMat, i * 7.4, 37.5, 22); const dr = put(mkCone(3.6, 5, 4), roofTeal, i * 7.4, 42.8, 22); dr.rotation.y = Math.PI / 4; windows.push([i * 7.4, 37.5, 24.4, 0, 1.6, 3.4]); }
   crenLine(-27, 23.1, 27, 23.1, 32.6); crenLine(-27, 5, 27, 5, 32.6);
   put(mkBox(26, 62, 26), stoneMat, 0, 31, -12);
   for (const y of [20, 40, 58]) put(mkBox(28, 1.2, 28), darkStone, 0, y, -12);
-  put(mkCone(21, 44, 4), roofTeal, 0, 62 + 22, -12).rotation.y = Math.PI / 4;
-  put(mkCone(0.4, 16, 6), gold, 0, 62 + 44 + 7, -12);
-  put(track(new THREE.SphereGeometry(1.1, 10, 8)), gold, 0, 62 + 44, -12);
-  flag(0, 62 + 44 + 16, -12, FLAG[0]);
+  put(mkCone(21, 66, 4), roofTeal, 0, 62 + 33, -12).rotation.y = Math.PI / 4;
+  put(mkCone(0.4, 16, 6), gold, 0, 62 + 66 + 7, -12);
   put(track(new THREE.CircleGeometry(4.4, 28)), track(new THREE.MeshStandardMaterial({ color: C('#f4ecd0', T.tint), roughness: 0.6, emissive: C('#ffcf80', T.windows > 0 ? 0.55 : 0) })), 0, 50, 1.2);
   put(track(new THREE.TorusGeometry(4.5, 0.4, 8, 28)), gold, 0, 50, 1.3);
   for (let k = -1; k <= 1; k++) for (const y of [14, 28, 42]) windows.push([k * 7.5, y, 1.15, 0, 2.2, 5.2]);
   for (let k = -1; k <= 1; k++) { put(mkBox(5, 0.8, 3), darkStone, k * 7.5, 11, 2.2); crenLine(k * 7.5 - 2.4, 3.6, k * 7.5 + 2.4, 3.6, 12.5, 0.9); }
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) spire(sx * 13.5, -12 + sz * 13.5, 4, 70, 26, sx * sz > 0 ? roofTeal : roofBlue, 0, { flag: FLAG[(sx + sz + 4) % 3] });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) spire(sx * 13.5, -12 + sz * 13.5, 4, 70, 26, sx * sz > 0 ? roofTeal : roofBlue, 0);
   for (const sx of [-1, 1]) {
     put(mkBox(22, 40, 20), stoneMat, sx * 40, 20, 2);
-    put(mkCone(17, 18, 4), sx > 0 ? roofBlue : roofTeal, sx * 40, 49, 2).rotation.y = Math.PI / 4;
+    put(mkCone(17, 30, 4), sx > 0 ? roofBlue : roofTeal, sx * 40, 55, 2).rotation.y = Math.PI / 4;
     put(mkBox(24, 1, 22), darkStone, sx * 40, 40.2, 2);
     for (let k = -1; k <= 1; k++) for (const y of [12, 26]) windows.push([sx * 40 + k * 6, y, 12.15, 0, 2.2, 5]);
-    spire(sx * 54, 10, 5.2, 52, 22, sx > 0 ? roofTeal : roofBlue, 0, { flag: FLAG[sx > 0 ? 1 : 2] });
-    spire(sx * 30, -26, 3.6, 62, 24, roofTeal, 0, { flag: FLAG[0] });
+    spire(sx * 54, 10, 5.2, 52, 22, sx > 0 ? roofTeal : roofBlue, 0);
+    spire(sx * 30, -26, 3.6, 62, 24, roofTeal, 0);
     spire(sx * 24, 24, 4.4, 40, 18, roofBlue, 0);
   }
   put(mkBox(14, 30, 26), stoneMat, 66, 15, -16);
-  put(mkCone(11, 14, 4), roofTeal, 66, 37, -16).rotation.y = Math.PI / 4;
+  put(mkCone(11, 24, 4), roofTeal, 66, 42, -16).rotation.y = Math.PI / 4;
   put(track(new THREE.CircleGeometry(3, 24)), track(new THREE.MeshBasicMaterial({ color: C(T.windows > 0 ? '#ffb55a' : '#5a7ab0', 1) })), 66, 22, -2.8);
   put(track(new THREE.TorusGeometry(3.1, 0.35, 8, 24)), darkStone, 66, 22, -2.7);
   for (let i = 0; i < 3; i++) { const fb = put(mkBox(0.9, 0.9, 13), darkStone, 59.5, 20 - i * 2.2, -16 + (i - 1) * 7); fb.rotation.z = 0.5; }
-  spire(66, 4, 3.2, 44, 20, roofBlue, 0, { flag: FLAG[1] });
+  spire(66, 4, 3.2, 44, 20, roofBlue, 0);
   put(mkBox(16, 24, 10), stoneMat, 0, 12, 40);
   put(mkBox(7, 9, 0.3), track(new THREE.MeshBasicMaterial({ color: C(T.windows > 0 ? '#ffc070' : '#16110e') })), 0, 5, 45.05);
-  for (const sx of [-1, 1]) spire(sx * 12, 40, 5, 30, 14, roofBlue, 0, { flag: FLAG[(sx + 3) % 3] });
+  for (const sx of [-1, 1]) spire(sx * 12, 40, 5, 30, 14, roofBlue, 0);
   crenLine(-6, 45, 6, 45, 24.6);
   for (const sx of [-1, 1]) { put(mkBox(30, 16, 3.5), stoneMat, sx * 30, 8, 42); crenLine(sx * 15, 43.8, sx * 45, 43.8, 16.4); }
-  put(mkBox(68, 3, 7), stoneMat, 116, 30, 8);
-  crenLine(82, 11.2, 148, 11.2, 33.6); crenLine(82, 4.8, 148, 4.8, 33.6);
-  for (let i = 0; i < 6; i++) {
-    const ax = 90 + i * 10; const g = gl(ax, 8) - 4; const hgt = 31 - g;
+  put(mkBox(84, 3, 7), stoneMat, 108, 30, 8);
+  crenLine(66, 11.2, 148, 11.2, 33.6); crenLine(66, 4.8, 148, 4.8, 33.6);
+  put(mkBox(9, 20, 9), darkStone, 73, 40, 8); put(mkCone(7, 20, 4), roofBlue, 73, 60, 8).rotation.y = Math.PI / 4; // a gatehouse where the bridge meets the castle
+  for (let i = 0; i < 8; i++) {
+    const ax = 70 + i * 10; const g = gl(ax, 8) - 4; const hgt = 31 - g;
     put(mkBox(3.6, hgt, 5.6), darkStone, ax, g + hgt / 2, 8);
     put(mkBox(5.2, 3, 7), darkStone, ax, g + 1.5, 8);
-    for (const ay of [8, -22, -52, -82]) if (ay > g + 6 && i < 5) put(track(new THREE.TorusGeometry(4.2, 1.0, 8, 16, Math.PI)), stoneMat, ax + 5, ay, 8);
-    if (i < 5) put(track(new THREE.TorusGeometry(3.4, 1.1, 8, 14, Math.PI)), stoneMat, ax + 5, 26, 8);
+    for (const ay of [8, -22, -52, -82]) if (ay > g + 6 && i < 7) put(track(new THREE.TorusGeometry(4.2, 1.0, 8, 16, Math.PI)), stoneMat, ax + 5, ay, 8);
+    if (i < 7) put(track(new THREE.TorusGeometry(3.4, 1.1, 8, 14, Math.PI)), stoneMat, ax + 5, 26, 8);
   }
   const endBase = gl(150, 8);
   put(mkCyl(9, 30, 22), darkStone, 150, endBase - 8, 8);
-  spire(150, 8, 5, 34, 18, roofTeal, endBase, { flag: FLAG[2] });
+  spire(150, 8, 5, 34, 18, roofTeal, endBase);
   const wMesh = new THREE.InstancedMesh(wGeo, winMat, windows.length);
   const wr = rng(21);
   windows.forEach((w, i) => {
@@ -363,19 +357,6 @@ export function buildOutside(timeId) {
   const cMesh = new THREE.InstancedMesh(track(new THREE.BoxGeometry(1.5, 1.4, 1.1)), stoneMat, battle.length);
   battle.forEach((b, i) => { dm4.position.set(b[0], b[1] + 0.7, b[2]); dm4.rotation.set(0, b[3], 0); dm4.scale.set(1, 1, 1); dm4.updateMatrix(); cMesh.setMatrixAt(i, dm4.matrix); });
   castle.add(cMesh);
-  const flagMat = track(new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 } }, side: THREE.DoubleSide,
-    vertexShader: 'varying vec2 vUv; varying vec3 vC; uniform float uTime; attribute vec3 color; void main(){ vUv = uv; vC = color; vec3 p = position; float w = sin(p.x * 1.6 - uTime * 4.0) * 0.5 * (p.x * 0.35 + 0.1); p.z += w; p.y += sin(p.x * 1.2 - uTime * 3.0) * 0.12 * p.x; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }',
-    fragmentShader: 'varying vec2 vUv; varying vec3 vC; void main(){ gl_FragColor = vec4(vC * (0.82 + 0.3 * vUv.x), 1.0);\n#include <colorspace_fragment>\n}',
-  }));
-  shaders.push(flagMat);
-  flagList.forEach((f) => {
-    const g = track(new THREE.PlaneGeometry(6, 3.2, 10, 2)); g.translate(3, 0, 0);
-    const cc = new THREE.Color(f.color); const arr = new Float32Array(g.attributes.position.count * 3); for (let i = 0; i < arr.length; i += 3) { arr[i] = cc.r; arr[i + 1] = cc.g; arr[i + 2] = cc.b; }
-    g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
-    const m = new THREE.Mesh(g, flagMat); m.position.set(f.x, f.y, f.z); m.rotation.y = -0.5; castle.add(m);
-    const pole = new THREE.Mesh(track(new THREE.CylinderGeometry(0.12, 0.12, 4.4, 5)), woodMat); pole.position.set(f.x, f.y - 0.8, f.z); castle.add(pole);
-  });
   if (T.windows > 0 || T.glow > 0) {
     const glow = track(new THREE.SpriteMaterial({ map: softTex, color: 0xffb060, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: T.windows > 0 ? 0.9 : 0.45 }));
     for (const [x, y, z, s] of [[-4, 7, 46, 14], [4, 7, 46, 14], [0, 36, 4, 22], [-30, 20, 45, 12], [30, 20, 45, 12], [66, 22, -2, 16], [112, 34, 8, 16]]) { const sp = new THREE.Sprite(glow); sp.position.set(x, y, z); sp.scale.setScalar(s); castle.add(sp); }
