@@ -724,3 +724,6 @@ html:has(.app.immersive), html:has(.app.immersive) body { overflow: hidden; over
   .r-joy { width: 96px; height: 96px; }
   .app.immersive .r-dpad { width: 120px; height: 120px; }
 }
+
+.size-controls label > span { display: flex; justify-content: space-between; gap: 8px; }
+.size-controls label b { font-weight: 700; color: var(--amber-hi); font-variant-numeric: tabular-nums; }

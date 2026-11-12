@@ -197,13 +197,16 @@ function SizeControls({ book, onSize }) {
   useEffect(() => () => clearTimeout(timer.current), []);
   const save = (patch) => { clearTimeout(timer.current); timer.current = setTimeout(() => onSize(patch), 350); };
   const changed = thick !== 1 || tall !== 1;
+  // the book at normal size, so the numbers below are real measurements (shelf pixels to centimetres)
+  const base = spineDesign({ ...book, thick: null, tall: null });
+  const size = (px, k, perPx) => { const cm = px * k * perPx; return `${(cm / 2.54).toFixed(1)} in · ${cm.toFixed(1)} cm · ${Math.round(k * 100)}%`; };
   return (
     <div className="size-controls">
       <h4>Size on the shelf</h4>
-      <label>Thickness
+      <label><span>Thickness <b>{size(base.width, thick, 0.075)}</b></span>
         <input type="range" min="0.5" max="2.2" step="0.05" value={thick} onChange={(e) => { const v = Number(e.target.value); setThick(v); save({ thick: v === 1 ? null : v }); }} />
       </label>
-      <label>Height
+      <label><span>Height <b>{size(base.height, tall, 0.125)}</b></span>
         <input type="range" min="0.6" max="1.25" step="0.05" value={tall} onChange={(e) => { const v = Number(e.target.value); setTall(v); save({ tall: v === 1 ? null : v }); }} />
       </label>
       {changed && <button className="link-btn" onClick={() => { clearTimeout(timer.current); setThick(1); setTall(1); onSize({ thick: null, tall: null }); }}>Reset to normal size</button>}
