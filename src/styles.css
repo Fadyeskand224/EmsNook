@@ -727,3 +727,13 @@ html:has(.app.immersive), html:has(.app.immersive) body { overflow: hidden; over
 
 .size-controls label > span { display: flex; justify-content: space-between; gap: 8px; }
 .size-controls label b { font-weight: 700; color: var(--amber-hi); font-variant-numeric: tabular-nums; }
+
+/* ───────── password eye, forgot link, notices ───────── */
+.pw-wrap { position: relative; display: block; }
+.pw-wrap input { width: 100%; padding-right: 48px; }
+.pw-eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; display: grid; place-items: center; background: none; border: 0; color: var(--muted); border-radius: 10px; }
+.pw-eye:hover, .pw-eye[aria-pressed="true"] { color: var(--amber-hi); }
+.forgot-link { justify-self: start; font-size: 0.9rem; }
+.login-note { margin: 0; font-size: 0.95rem; color: var(--muted); }
+.login-note b { color: var(--text); }
+.form-notice { padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(224, 164, 88, 0.45); background: rgba(224, 164, 88, 0.1); color: var(--amber-hi); font-size: 0.92rem; }

@@ -42,6 +42,8 @@ npm run build && npm start   # production build served by the API on :3001
 
 Same approach as EmsMeals: scrypt password hashes, hashed session tokens in an HttpOnly cookie, login lockout, rate limits, same-origin checks on writes, strict CSP.
 
+Sign-up asks for the password twice, and every password box has an eye to show what you typed. **Forgot password** mails a one-time link (valid for an hour; only a hash of it is stored; asking again replaces the old link; using it signs out every other device). The reply never reveals whether an email has an account, and the link address comes from `APP_URL` (or Render's `RENDER_EXTERNAL_URL`), never from the request. Emails go out through [Resend](https://resend.com): set `RESEND_API_KEY` (and `MAIL_FROM` once you have a verified domain). Without a key, in development, the link is printed in the server log.
+
 ## Deploying
 
 Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (see `.env.example`). Without them, production refuses to start unless `DATA_DIR` points at a persistent disk.

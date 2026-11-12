@@ -2,12 +2,14 @@ import express from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { hashPassword, verifyPassword, dummyVerify, passwordProblem } from './passwords.js';
 import { createSessionStore, SESSION_DAYS } from './sessions.js';
 import { createAttemptTracker } from './attempts.js';
 import { validateEmail, validateName, validateNewBook, validateSettings, validateOrder, validatePlace, STATUSES } from './validate.js';
 import { DEFAULT_SETTINGS } from '../shared/options.js';
+import { createMailer } from './mail.js';
 import { createBookLookup, normIsbn, UpstreamError } from './books.js';
 
 const GENERIC_LOGIN_ERROR = 'Incorrect email or password.';
@@ -53,7 +55,7 @@ const toBook = (r) => ({
   finishedAt: r.finished_at,
 });
 
-export function createApp({ db, prod = false, distDir = null, allowedOrigins = [], limits = {}, fetchImpl, googleKey } = {}) {
+export function createApp({ db, prod = false, distDir = null, allowedOrigins = [], limits = {}, fetchImpl, googleKey, mailer = createMailer(), appUrl = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || '' } = {}) {
   const app = express();
   const sessions = createSessionStore(db);
   const loginAttempts = createAttemptTracker(db, { scope: 'login' });
@@ -117,6 +119,7 @@ export function createApp({ db, prod = false, distDir = null, allowedOrigins = [
   const limiter = (windowMs, limit) => rateLimit({ windowMs, limit, standardHeaders: true, legacyHeaders: false, message: { error: LOCKED_ERROR } });
   const authLimiter = limiter(15 * 60e3, limits.auth ?? 30);
   const signupLimiter = limiter(60 * 60e3, limits.signup ?? 10);
+  const forgotLimiter = limiter(60 * 60e3, limits.forgot ?? 6);
   const searchLimiter = limiter(10 * 60e3, limits.search ?? 200);
   api.use(limiter(15 * 60e3, limits.general ?? 900));
 
@@ -152,12 +155,13 @@ export function createApp({ db, prod = false, distDir = null, allowedOrigins = [
 
   // ───────── Auth ─────────
   api.post('/auth/signup', signupLimiter, h(async (req, res) => {
-    const { name, email, password } = req.body || {};
+    const { name, email, password, confirm } = req.body || {};
     if (!validateName(name)) return res.status(400).json({ error: 'Please enter your name.' });
     if (!validateEmail(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
     const id = normEmail(email);
     const problem = passwordProblem(password, { email: id, name });
     if (problem) return res.status(400).json({ error: problem });
+    if (confirm !== undefined && confirm !== password) return res.status(400).json({ error: 'The two passwords do not match.' });
     if (await db.get('SELECT 1 AS x FROM users WHERE email = ?', [id])) {
       return res.status(409).json({ error: 'An account with that email already exists.' });
     }
@@ -190,6 +194,55 @@ export function createApp({ db, prod = false, distDir = null, allowedOrigins = [
     }
     await loginAttempts.reset(id);
     await setSession(res, user.id); // brand-new token on every login
+    return res.json({ user: publicUser(user) });
+  }));
+
+  // Forgot password: always answers the same way, so nobody can use it to find out who has an account.
+  const sha = (t) => crypto.createHash('sha256').update(t).digest('hex');
+  const RESET_MINUTES = 60;
+  const escapeHtml = (t) => String(t).replace(/[<>&"']/g, (c) => `&#${c.charCodeAt(0)};`);
+  api.post('/auth/forgot', forgotLimiter, h(async (req, res) => {
+    const { email } = req.body || {};
+    const reply = { ok: true, message: 'If that email has an account, a reset link is on its way. It works for an hour.' };
+    if (!validateEmail(email)) return res.json(reply);
+    const user = await db.get('SELECT * FROM users WHERE email = ?', [normEmail(email)]);
+    if (user) {
+      const token = crypto.randomBytes(32).toString('base64url');
+      await db.run('DELETE FROM resets WHERE user_id = ?', [user.id]); // only the newest link works
+      await db.run('INSERT INTO resets (token_hash, user_id, expires_at) VALUES (?, ?, ?)', [sha(token), user.id, Date.now() + RESET_MINUTES * 60e3]);
+      // The link goes in the URL fragment, which browsers never send to servers or put in referrers.
+      // The address comes from configuration, never from the request, so a forged Host header cannot redirect the link.
+      const base = (appUrl || (prod ? '' : `${req.protocol}://${req.get('host')}`)).replace(/\/$/, '');
+      if (base) {
+        const link = `${base}/#reset=${token}`;
+        mailer.send({
+          to: user.email,
+          subject: 'Reset your EmsNook password',
+          text: `Hi ${user.name},\n\nSomeone asked to reset the password for your EmsNook account. Open this link to choose a new one (it works once, for ${RESET_MINUTES} minutes):\n\n${link}\n\nIf this wasn't you, ignore this email and your password stays the same.`,
+          html: `<p>Hi ${escapeHtml(user.name)},</p><p>Someone asked to reset the password for your EmsNook account. <a href="${link}">Choose a new password</a>. The link works once, for ${RESET_MINUTES} minutes.</p><p>If this wasn't you, ignore this email and your password stays the same.</p>`,
+        }).catch((e) => console.error('Reset email failed:', e.message)); // not awaited: the reply must not reveal whether the account exists
+      } else console.error('A reset was requested but APP_URL is not set, so no link was sent.');
+    }
+    return res.json(reply);
+  }));
+
+  api.post('/auth/reset', authLimiter, h(async (req, res) => {
+    const { token, password, confirm } = req.body || {};
+    const bad = () => res.status(400).json({ error: 'This reset link has expired or was already used. Ask for a new one.' });
+    if (typeof token !== 'string' || token.length < 20 || token.length > 100) return bad();
+    const row = await db.get('SELECT * FROM resets WHERE token_hash = ?', [sha(token)]);
+    if (!row) return bad();
+    if (row.expires_at < Date.now()) { await db.run('DELETE FROM resets WHERE token_hash = ?', [row.token_hash]); return bad(); }
+    const user = await db.get('SELECT * FROM users WHERE id = ?', [row.user_id]);
+    if (!user) return bad();
+    const problem = passwordProblem(password, { email: user.email, name: user.name });
+    if (problem) return res.status(400).json({ error: problem });
+    if (confirm !== undefined && confirm !== password) return res.status(400).json({ error: 'The two passwords do not match.' });
+    await db.run('UPDATE users SET password_hash = ? WHERE id = ?', [await hashPassword(password), user.id]);
+    await db.run('DELETE FROM resets WHERE user_id = ?', [user.id]);
+    await sessions.destroyAllForUser(user.id); // everyone signed in with the old password is signed out
+    await loginAttempts.reset(user.email);
+    await setSession(res, user.id);
     return res.json({ user: publicUser(user) });
   }));
 
@@ -245,6 +298,7 @@ export function createApp({ db, prod = false, distDir = null, allowedOrigins = [
     }
     await db.batch([
       ['DELETE FROM sessions WHERE user_id = ?', [req.user.id]],
+      ['DELETE FROM resets WHERE user_id = ?', [req.user.id]],
       ['DELETE FROM spines WHERE user_id = ?', [req.user.id]],
       ['DELETE FROM reading_log WHERE user_id = ?', [req.user.id]],
       ['DELETE FROM books WHERE user_id = ?', [req.user.id]],

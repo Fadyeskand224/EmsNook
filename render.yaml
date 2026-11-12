@@ -20,3 +20,7 @@ services:
         sync: false
       - key: GOOGLE_BOOKS_API_KEY
         sync: false   # optional
+      - key: RESEND_API_KEY
+        sync: false   # sends the password-reset emails (free at resend.com); without it, reset links are not emailed
+      - key: MAIL_FROM
+        sync: false   # e.g. EmsNook <noreply@yourdomain.com>; optional while testing

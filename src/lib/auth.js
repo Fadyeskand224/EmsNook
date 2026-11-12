@@ -2,8 +2,14 @@
 // JavaScript cannot read, so no password, hash or token is ever stored in the page.
 import { api, ApiError } from './api';
 
-export const signUp = async ({ name, email, password }) =>
-  (await api('/auth/signup', { method: 'POST', body: { name, email, password } })).user;
+export const signUp = async ({ name, email, password, confirm }) =>
+  (await api('/auth/signup', { method: 'POST', body: { name, email, password, confirm } })).user;
+
+/** Asks for a reset link. The answer is always the same, whether or not the email has an account. */
+export const forgotPassword = async (email) => (await api('/auth/forgot', { method: 'POST', body: { email } })).message;
+
+export const resetPassword = async ({ token, password, confirm }) =>
+  (await api('/auth/reset', { method: 'POST', body: { token, password, confirm } })).user;
 
 export const logIn = async ({ email, password }) =>
   (await api('/auth/login', { method: 'POST', body: { email, password } })).user;

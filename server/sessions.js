@@ -42,6 +42,7 @@ export function createSessionStore(db) {
     destroyAllForUser: (userId) => db.run('DELETE FROM sessions WHERE user_id = ?', [userId]),
     prune: async () => {
       await db.run('DELETE FROM sessions WHERE expires_at < ?', [Date.now()]);
+      await db.run('DELETE FROM resets WHERE expires_at < ?', [Date.now()]);
       await db.run('DELETE FROM attempts WHERE locked_until < ? AND first_at < ?', [Date.now(), Date.now() - 86400000]);
     },
   };

@@ -24,6 +24,13 @@ const SCHEMA = [
      first_at     INTEGER NOT NULL,
      locked_until INTEGER NOT NULL
    )`,
+  // Password-reset links: only a SHA-256 of the token is stored; each works once and expires after an hour.
+  `CREATE TABLE IF NOT EXISTS resets (
+     token_hash TEXT PRIMARY KEY,
+     user_id    INTEGER NOT NULL,
+     expires_at INTEGER NOT NULL
+   )`,
+  'CREATE INDEX IF NOT EXISTS resets_user ON resets(user_id)',
   // Every book a user has saved: status is want (to read), reading, or read.
   `CREATE TABLE IF NOT EXISTS books (
      id           INTEGER PRIMARY KEY,

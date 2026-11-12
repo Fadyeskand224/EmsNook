@@ -184,3 +184,66 @@ test('too many requests from one place are slowed down (sign-ups and logins)', a
   for (let i = 0; i < 6; i++) last = await login(lim, 'l1@example.com', 'definitely-wrong-1');
   assert.equal(last.status, 429);
 });
+
+// ───────── confirm password and "forgot password" ─────────
+test('signing up with two different passwords is refused', async () => {
+  const r = await signup(dev, 'mismatch@example.com', { confirm: PW + 'x' });
+  assert.equal(r.status, 400);
+  assert.match(r.json.error, /do not match/i);
+  assert.equal((await signup(dev, 'matching@example.com', { confirm: PW })).status, 201);
+});
+
+test('forgot password: a link is mailed, works once, signs out other devices, and never reveals who has an account', async () => {
+  const sent = [];
+  const srv = await open(createApp({ db, mailer: { send: async (m) => { sent.push(m); return true; } }, appUrl: 'https://nook.test', limits: { auth: 1000, signup: 1000, forgot: 1000 } }));
+  try {
+    const email = 'forgetful@example.com';
+    const made = await signup(srv, email);
+    assert.equal(made.status, 201);
+    const wait = () => new Promise((r) => setTimeout(r, 30));
+
+    const ghost = await call(srv, '/auth/forgot', { method: 'POST', body: { email: 'nobody@example.com' } });
+    const real = await call(srv, '/auth/forgot', { method: 'POST', body: { email } });
+    await wait();
+    assert.equal(ghost.status, 200);
+    assert.deepEqual(ghost.json, real.json); // identical answers
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].to, email);
+    const token = sent[0].text.match(/#reset=([\w-]+)/)[1];
+    assert.match(sent[0].text, /^.*\n[\s\S]*https:\/\/nook\.test\/#reset=/);
+    const stored = await db.all('SELECT * FROM resets');
+    assert.ok(stored.every((r) => r.token_hash !== token), 'only a hash of the token is stored');
+
+    // a weak or mismatched password does not use up the link
+    assert.equal((await call(srv, '/auth/reset', { method: 'POST', body: { token, password: 'short' } })).status, 400);
+    assert.equal((await call(srv, '/auth/reset', { method: 'POST', body: { token, password: 'a-brand-new-pass-91', confirm: 'different-91' } })).status, 400);
+    assert.equal((await call(srv, '/auth/reset', { method: 'POST', body: { token: 'x'.repeat(43), password: 'a-brand-new-pass-91' } })).status, 400);
+
+    const NEW = 'a-brand-new-pass-91';
+    const done = await call(srv, '/auth/reset', { method: 'POST', body: { token, password: NEW, confirm: NEW } });
+    assert.equal(done.status, 200);
+    assert.match(done.setCookie, /HttpOnly/i);
+    assert.equal((await call(srv, '/auth/me', { cookie: made.cookie })).status, 401, 'the old session is signed out');
+    assert.equal((await call(srv, '/auth/me', { cookie: done.cookie })).status, 200);
+    assert.equal((await login(srv, email, PW)).status, 401);
+    assert.equal((await login(srv, email, NEW)).status, 200);
+    // the link is single-use
+    assert.equal((await call(srv, '/auth/reset', { method: 'POST', body: { token, password: 'yet-another-pass-77' } })).status, 400);
+
+    // a newer link replaces the older one, and an expired one is refused
+    await call(srv, '/auth/forgot', { method: 'POST', body: { email } }); await wait();
+    await call(srv, '/auth/forgot', { method: 'POST', body: { email } }); await wait();
+    const [oldMail, newMail] = [sent[1], sent[2]].map((m) => m.text.match(/#reset=([\w-]+)/)[1]);
+    assert.equal((await call(srv, '/auth/reset', { method: 'POST', body: { token: oldMail, password: 'yet-another-pass-77' } })).status, 400);
+    await db.run('UPDATE resets SET expires_at = ?', [Date.now() - 1000]);
+    assert.equal((await call(srv, '/auth/reset', { method: 'POST', body: { token: newMail, password: 'yet-another-pass-77' } })).status, 400);
+  } finally { srv.s.close(); }
+});
+
+test('forgot password is rate limited and ignores junk', async () => {
+  const srv = await open(createApp({ db, mailer: { send: async () => true }, appUrl: 'https://nook.test', limits: { forgot: 3 } }));
+  try {
+    for (let i = 0; i < 3; i++) assert.equal((await call(srv, '/auth/forgot', { method: 'POST', body: { email: 'junk' } })).status, 200);
+    assert.equal((await call(srv, '/auth/forgot', { method: 'POST', body: { email: 'junk' } })).status, 429);
+  } finally { srv.s.close(); }
+});
