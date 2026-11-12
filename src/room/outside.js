@@ -556,78 +556,142 @@ export function buildOutside(timeId) {
     const f = { g, birds, a: -Math.PI / 2 - dir * (0.5 + frng() * 0.6), R: 60 + frng() * 150, dir, y: 12 + frng() * 70, life: 0, max: 36 + frng() * 22, w: 0.09 + frng() * 0.04 };
     fliers.add(g); flocks.push(f);
   };
-  const dragonCanvas = (kind) => {
-    const cv = document.createElement('canvas');
-    if (kind === 'body') {
-      cv.width = 1024; cv.height = 360; const g = cv.getContext('2d'); g.fillStyle = '#000'; g.strokeStyle = '#000';
-      g.beginPath(); g.moveTo(980, 118);
-      g.quadraticCurveTo(930, 104, 884, 104);
-      g.lineTo(868, 80); g.lineTo(858, 106);
-      g.lineTo(842, 70); g.lineTo(832, 108);
-      g.quadraticCurveTo(800, 122, 776, 150);
-      g.bezierCurveTo(740, 176, 706, 150, 670, 134);
-      g.bezierCurveTo(630, 120, 590, 150, 540, 160);
-      g.bezierCurveTo(480, 172, 420, 168, 360, 184);
-      g.bezierCurveTo(300, 200, 250, 222, 190, 236);
-      g.bezierCurveTo(130, 250, 80, 246, 40, 232);
-      g.lineTo(6, 212); g.lineTo(34, 252); g.lineTo(0, 262); g.lineTo(46, 270); g.lineTo(18, 296); g.lineTo(76, 276);
-      g.bezierCurveTo(130, 276, 200, 270, 250, 262);
-      g.lineTo(262, 292); g.lineTo(270, 316); g.lineTo(292, 322); g.lineTo(296, 298); g.lineTo(312, 272);
-      g.bezierCurveTo(350, 268, 400, 262, 440, 262);
-      g.lineTo(458, 290); g.lineTo(470, 312); g.lineTo(492, 316); g.lineTo(494, 292); g.lineTo(504, 264);
-      g.bezierCurveTo(560, 250, 620, 226, 670, 200);
-      g.bezierCurveTo(720, 188, 770, 196, 800, 176);
-      g.quadraticCurveTo(840, 152, 880, 136);
-      g.quadraticCurveTo(940, 134, 980, 118); g.closePath(); g.fill();
-      for (let i = 0; i < 16; i++) { const x = 700 - i * 40; const y = 150 + (i < 4 ? i * 2 : i * 4.2); g.beginPath(); g.moveTo(x, y); g.lineTo(x - 10, y - 24 + i * 0.8); g.lineTo(x - 22, y + 4); g.closePath(); g.fill(); }
-    } else {
-      cv.width = 1024; cv.height = 512; const g = cv.getContext('2d'); g.fillStyle = '#000'; g.strokeStyle = '#000'; g.lineJoin = 'round';
-      const sh = [40, 470];
-      const tips = [[300, 20], [640, 40], [900, 150], [980, 330], [820, 470]];
-      g.beginPath(); g.moveTo(...sh);
-      g.lineTo(150, 230); g.lineTo(300, 20);
-      tips.slice(1).forEach((tp, i) => { const prev = tips[i]; const mx = (prev[0] + tp[0]) / 2; const my = (prev[1] + tp[1]) / 2; g.quadraticCurveTo(mx - (tp[1] - prev[1]) * 0.12, my + (tp[0] - prev[0]) * 0.22 + 20, tp[0], tp[1]); });
-      g.quadraticCurveTo(520, 420, sh[0] + 60, 500); g.closePath(); g.fill();
-      g.lineWidth = 14; g.beginPath(); g.moveTo(...sh); g.lineTo(150, 230); g.lineTo(300, 20); g.stroke();
-      tips.forEach((tp) => { g.lineWidth = 9; g.beginPath(); g.moveTo(150, 230); g.lineTo(...tp); g.stroke(); });
-    }
-    const t = new THREE.CanvasTexture(cv); t.anisotropy = 4; t.colorSpace = THREE.SRGBColorSpace; track(t); return t;
-  };
-  const dragonMat = (tex, wing) => track(new THREE.ShaderMaterial({
-    uniforms: { map: { value: tex }, uTime: { value: 0 }, uPhase: { value: 0 }, uWing: { value: wing ? 1 : 0 }, uColor: { value: inkCol.clone() }, uHaze: { value: haze.clone() }, uMix: { value: 0.06 } },
-    transparent: true, side: THREE.DoubleSide, depthWrite: false,
-    vertexShader: `varying vec2 vUv; uniform float uTime; uniform float uPhase; uniform float uWing;
-      void main(){
-        vUv = uv; vec3 p = position;
-        if (uWing > 0.5) {
-          float d = clamp(length(p.xy - vec2(-0.5, -0.5)), 0.0, 1.6);
-          float a = sin(uTime * 2.3 + uPhase - d * 1.7) * 0.55 * d + 0.12;
-          vec2 q = p.xy - vec2(-0.5, -0.5); float c = cos(a); float s = sin(a);
-          p.xy = vec2(-0.5, -0.5) + vec2(q.x * c - q.y * s, q.x * s + q.y * c);
-        } else {
-          p.y += sin(uTime * 1.6 - p.x * 5.0 + uPhase) * 0.05 * smoothstep(0.1, -0.5, p.x) + sin(uTime * 2.3 + uPhase) * 0.015;
-        }
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-      }`,
-    fragmentShader: `varying vec2 vUv; uniform sampler2D map; uniform vec3 uColor; uniform vec3 uHaze; uniform float uMix;
-      void main(){ float a = texture2D(map, vUv).a; if (a < 0.45) discard; gl_FragColor = vec4(mix(uColor, uHaze, uMix), 1.0);\n#include <colorspace_fragment>\n}`,
-  }));
   let dragon = null; let dragonState = null;
   const er = rng(1234);
   let nextFlock = 4 + er() * 6; let nextDragon = 30 + er() * 35;
   let clock = 0;
+  // ───────── the dragon: a real 3D beast (tapering body, bones, leathery wings that join at the shoulders) ─────────
+  const dragMat = track(new THREE.MeshStandardMaterial({ color: T.windows > 0 ? '#08090d' : T.glow > 0 ? '#1d100c' : '#1c1917', roughness: 0.6, metalness: 0.12, side: THREE.DoubleSide }));
+  const membMat = track(new THREE.MeshStandardMaterial({ color: T.windows > 0 ? '#0e0c12' : '#2b1a14', roughness: 0.85, side: THREE.DoubleSide }));
+  const hornMat = track(new THREE.MeshStandardMaterial({ color: '#2e2925', roughness: 0.45 }));
+  const eyeMat = track(new THREE.MeshBasicMaterial({ color: 0xff7a1c, fog: false }));
+  const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const UP = new THREE.Vector3(0, 1, 0);
+  const fireCols = [new THREE.Color('#fff0b0'), new THREE.Color('#ff8a22'), new THREE.Color('#7a1c08')];
   function makeDragon() {
-    const g = new THREE.Group();
-    const bodyM = dragonMat(dragonCanvas('body'), false); const wingNear = dragonMat(dragonCanvas('wing'), true); const wingFar = dragonMat(dragonCanvas('wing'), true);
-    wingFar.uniforms.uPhase.value = 0.6; wingFar.uniforms.uColor.value = inkCol.clone().lerp(haze, 0.12);
-    const body = new THREE.Mesh(track(new THREE.PlaneGeometry(1, 0.352, 48, 4)), bodyM);
-    const wing1 = new THREE.Mesh(track(new THREE.PlaneGeometry(1, 0.5, 20, 10)), wingNear); wing1.position.set(0.0, 0.2, 0.01); wing1.scale.set(0.9, 0.9, 1);
-    const wing2 = new THREE.Mesh(track(new THREE.PlaneGeometry(1, 0.5, 20, 10)), wingFar); wing2.position.set(-0.1, 0.18, -0.01); wing2.scale.set(0.8, 0.8, 1);
-    const fire = new THREE.Sprite(track(new THREE.SpriteMaterial({ map: softTex, color: 0xff9a3a, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0 })));
-    fire.position.set(0.62, 0.0, 0.02); fire.scale.set(0.5, 0.2, 1);
-    g.add(wing2, body, wing1, fire);
-    g.scale.setScalar(150);
-    return { g, mats: [bodyM, wingNear, wingFar], fire };
+    const own = [];
+    const mk = (o) => { own.push(o); return o; };
+    const g = new THREE.Group(); g.rotation.order = 'YXZ';
+    const inner = new THREE.Group(); g.add(inner);
+    const SEG = 64; const RAD = 10;
+    const bodyGeo = mk(new THREE.BufferGeometry());
+    const bp = new Float32Array((SEG + 1) * (RAD + 1) * 3);
+    const idx = [];
+    for (let i = 0; i < SEG; i++) for (let j = 0; j < RAD; j++) { const a = i * (RAD + 1) + j; const b = a + RAD + 1; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+    bodyGeo.setIndex(idx); bodyGeo.setAttribute('position', new THREE.BufferAttribute(bp, 3));
+    const body = new THREE.Mesh(bodyGeo, dragMat); body.frustumCulled = false; inner.add(body);
+    const radius = (u) => (u < 0.06 ? 0.016 + 0.006 * (u / 0.06) : u < 0.3 ? 0.022 + 0.026 * sstep(0.06, 0.3, u) : u < 0.56 ? 0.048 + 0.03 * Math.sin((Math.PI * (u - 0.3)) / 0.26) : 0.048 * Math.pow(1 - (u - 0.56) / 0.44, 1.35) + 0.002);
+    const C = Array.from({ length: SEG + 1 }, () => new THREE.Vector3());
+    const Upv = Array.from({ length: SEG + 1 }, () => new THREE.Vector3());
+    const Sd = Array.from({ length: SEG + 1 }, () => new THREE.Vector3());
+    const Tn = new THREE.Vector3();
+    const pose = (t) => {
+      for (let i = 0; i <= SEG; i++) {
+        const u = i / SEG;
+        const y = 0.078 * (1 - sstep(0.03, 0.3, u)) - 0.022 * sstep(0.55, 1, u) + Math.sin(t * 2.4 - u * 5) * 0.012 * sstep(0.5, 1, u) + Math.sin(t * 1.6 - u * 4) * 0.008 * (1 - sstep(0, 0.3, u));
+        const z = Math.sin(t * 2.0 - u * 6) * 0.02 * sstep(0.45, 1, u) + Math.sin(t * 1.4 - u * 5) * 0.012 * (1 - sstep(0, 0.32, u));
+        C[i].set(0.52 - u, y, z);
+      }
+      for (let i = 0; i <= SEG; i++) {
+        Tn.subVectors(C[Math.min(SEG, i + 1)], C[Math.max(0, i - 1)]).normalize();
+        Sd[i].crossVectors(Tn, UP).normalize(); Upv[i].crossVectors(Sd[i], Tn).normalize();
+        const r = radius(i / SEG);
+        for (let j = 0; j <= RAD; j++) {
+          const th = (j / RAD) * Math.PI * 2; const o = (i * (RAD + 1) + j) * 3;
+          const cx = Math.cos(th) * r * 0.9; const sx = Math.sin(th) * r;
+          bp[o] = C[i].x + Upv[i].x * cx + Sd[i].x * sx; bp[o + 1] = C[i].y + Upv[i].y * cx + Sd[i].y * sx; bp[o + 2] = C[i].z + Upv[i].z * cx + Sd[i].z * sx;
+        }
+      }
+      bodyGeo.attributes.position.needsUpdate = true; bodyGeo.computeVertexNormals();
+    };
+    const at = (u) => Math.round(u * SEG);
+    const _d = new THREE.Vector3();
+    const bone = (m, a, b) => { _d.subVectors(b, a); const L = _d.length() || 1e-4; m.position.copy(a).addScaledVector(_d, 0.5); m.quaternion.setFromUnitVectors(UP, _d.divideScalar(L)); m.scale.set(1, L, 1); };
+    const mkBone = (r1, r2, mat = dragMat) => { const m = new THREE.Mesh(mk(new THREE.CylinderGeometry(r2, r1, 1, 6)), mat); m.frustumCulled = false; inner.add(m); return m; };
+
+    // head
+    const head = new THREE.Group(); inner.add(head);
+    const skull = new THREE.Mesh(mk(new THREE.SphereGeometry(1, 14, 10)), dragMat); skull.scale.set(0.05, 0.028, 0.032); skull.position.set(0.02, 0, 0); head.add(skull);
+    const snout = new THREE.Mesh(mk(new THREE.ConeGeometry(0.022, 0.1, 10)), dragMat); snout.rotation.z = -Math.PI / 2; snout.scale.set(1, 1, 0.9); snout.position.set(0.085, -0.002, 0); head.add(snout);
+    const jaw = new THREE.Group(); jaw.position.set(0.0, -0.02, 0); head.add(jaw);
+    const jm = new THREE.Mesh(mk(new THREE.SphereGeometry(1, 10, 8)), dragMat); jm.scale.set(0.058, 0.011, 0.02); jm.position.set(0.06, 0, 0); jaw.add(jm);
+    for (const sz of [-1, 1]) {
+      const horn = new THREE.Mesh(mk(new THREE.ConeGeometry(0.008, 0.09, 6)), hornMat); horn.position.set(-0.03, 0.026, sz * 0.02); horn.rotation.set(sz * 0.35, 0, 1.95); head.add(horn);
+      const eye = new THREE.Mesh(mk(new THREE.SphereGeometry(0.006, 6, 6)), eyeMat); eye.position.set(0.04, 0.013, sz * 0.024); head.add(eye);
+    }
+    // flames are a stream of soft puffs from the mouth
+    const N = 52; const puffs = [];
+    for (let i = 0; i < N; i++) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex, color: 0xff8a22, transparent: true, depthWrite: false, opacity: 0, fog: false, blending: i % 3 === 0 ? THREE.AdditiveBlending : THREE.NormalBlending }));
+      mk(sp.material); sp.visible = false; head.add(sp); puffs.push(sp);
+    }
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex, color: 0xffb050, transparent: true, depthWrite: false, opacity: 0, fog: false, blending: THREE.AdditiveBlending })); mk(glow.material); glow.position.set(0.12, 0, 0); head.add(glow);
+
+    // spikes down the back
+    const spikes = [];
+    for (let u = 0.1; u < 0.86; u += 0.04) { const m = new THREE.Mesh(mk(new THREE.ConeGeometry(0.009, 0.034, 5)), hornMat); m.userData.u = u; inner.add(m); spikes.push(m); }
+    // legs, tucked up under the body
+    const legs = [];
+    for (const sz of [-1, 1]) for (const [u, k] of [[0.36, 1], [0.52, 1.25]]) legs.push({ sz, u, k, a: mkBone(0.014 * k, 0.009), b: mkBone(0.009, 0.004), pa: new THREE.Vector3(), pb: new THREE.Vector3(), pc: new THREE.Vector3() });
+
+    // wings: arm, forearm and four finger bones, with membrane stretched between them and down to the flank
+    const TRI = [[2, 3, 7], [2, 7, 4], [2, 4, 8], [2, 8, 5], [2, 5, 9], [2, 9, 6], [2, 6, 10], [2, 10, 11], [2, 11, 0]];
+    const mkWing = (sg) => {
+      const geo = mk(new THREE.BufferGeometry()); const arr = new Float32Array(TRI.length * 9); geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+      const mesh = new THREE.Mesh(geo, membMat); mesh.frustumCulled = false; inner.add(mesh);
+      return { sg, geo, arr, pts: Array.from({ length: 12 }, () => new THREE.Vector3()), arm: mkBone(0.012, 0.009), fore: mkBone(0.009, 0.006), fingers: [0, 1, 2, 3].map(() => mkBone(0.005, 0.0018)) };
+    };
+    const wings = [mkWing(1), mkWing(-1)];
+    const YAW = [0.55, 0.05, -0.45, -0.95]; const LEN = [0.36, 0.4, 0.36, 0.28];
+    const dirv = (out, phi, yaw, len, sg) => out.set(Math.sin(yaw) * len, Math.sin(phi) * Math.cos(yaw) * len, sg * Math.cos(phi) * Math.cos(yaw) * len);
+    const _v = new THREE.Vector3();
+    const wingPose = (w, t, amp) => {
+      const P = w.pts; const sg = w.sg; const w0 = 2.6;
+      const sh = at(0.33);
+      P[0].copy(C[sh]).addScaledVector(Upv[sh], radius(0.33) * 0.7).addScaledVector(Sd[sh], sg * 0.012);
+      dirv(_v, 0.15 + amp * 0.75 * Math.sin(t * w0), -0.25, 0.22, sg); P[1].copy(P[0]).add(_v);
+      dirv(_v, 0.05 + amp * 0.55 * Math.sin(t * w0 - 0.55), 0.12, 0.26, sg); P[2].copy(P[1]).add(_v);
+      for (let i = 0; i < 4; i++) { dirv(_v, -0.05 + amp * 0.5 * Math.sin(t * w0 - 0.95 - 0.12 * i), YAW[i], LEN[i], sg); P[3 + i].copy(P[2]).add(_v); }
+      for (let i = 0; i < 3; i++) P[7 + i].lerpVectors(P[3 + i], P[4 + i], 0.5).lerp(P[2], 0.17);
+      const hb = at(0.5); P[11].copy(C[hb]).addScaledVector(Sd[hb], sg * radius(0.5) * 0.8).addScaledVector(Upv[hb], -0.012);
+      P[10].lerpVectors(P[6], P[11], 0.5).lerp(P[2], 0.15);
+      bone(w.arm, P[0], P[1]); bone(w.fore, P[1], P[2]); w.fingers.forEach((f, i) => bone(f, P[2], P[3 + i]));
+      TRI.forEach((tri, k) => tri.forEach((pi, j) => { const o = k * 9 + j * 3; w.arr[o] = P[pi].x; w.arr[o + 1] = P[pi].y; w.arr[o + 2] = P[pi].z; }));
+      w.geo.attributes.position.needsUpdate = true; w.geo.computeVertexNormals();
+    };
+
+    const hv = new THREE.Vector3();
+    const update = (t, burn) => {
+      pose(t);
+      const amp = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 0.35));
+      inner.position.y = -Math.sin(t * 2.6) * 0.02 * amp;
+      wings.forEach((w) => wingPose(w, t, amp));
+      // head follows the end of the neck
+      const hi = at(0.045); hv.subVectors(C[0], C[hi]).normalize();
+      head.position.copy(C[hi]); head.rotation.set(0, -Math.atan2(hv.z, hv.x), Math.atan2(hv.y, Math.hypot(hv.x, hv.z)) - 0.12 + burn * 0.3);
+      jaw.rotation.z = -0.07 - burn * 0.5;
+      spikes.forEach((m) => { const i = at(m.userData.u); const k = 1 - m.userData.u * 0.55; m.position.copy(C[i]).addScaledVector(Upv[i], radius(m.userData.u) * 0.92 + 0.008); m.quaternion.setFromUnitVectors(UP, Upv[i]); m.scale.setScalar(k); });
+      legs.forEach((l) => {
+        const i = at(l.u);
+        l.pa.copy(C[i]).addScaledVector(Sd[i], l.sz * radius(l.u) * 0.7).addScaledVector(Upv[i], -radius(l.u) * 0.5);
+        l.pb.copy(l.pa).add(_v.set(-0.03 * l.k, -0.06, l.sz * 0.012)); l.pc.copy(l.pb).add(_v.set(0.04 * l.k, -0.035, l.sz * 0.01));
+        bone(l.a, l.pa, l.pb); bone(l.b, l.pb, l.pc);
+      });
+      // fire
+      glow.material.opacity = burn * 0.9; glow.scale.setScalar(0.09 + burn * 0.12);
+      puffs.forEach((sp, i) => {
+        sp.visible = burn > 0.02;
+        if (!sp.visible) return;
+        const p = (t * 1.7 + i / N) % 1;
+        sp.position.set(0.13 + p * 0.85, Math.sin(i * 12.9) * 0.03 * p + p * p * 0.05, Math.sin(i * 7.3) * 0.04 * p);
+        const sz = 0.05 + p * 0.27; sp.scale.set(sz, sz, 1);
+        sp.material.opacity = burn * Math.pow(1 - p, 0.8) * Math.min(1, p * 9) * 1.25;
+        if (p < 0.4) sp.material.color.lerpColors(fireCols[0], fireCols[1], p / 0.4); else sp.material.color.lerpColors(fireCols[1], fireCols[2], (p - 0.4) / 0.6);
+      });
+    };
+    pose(0);
+    g.scale.setScalar(110);
+    return { g, update, own };
   }
 
   const velV = new THREE.Vector3();
@@ -651,22 +715,21 @@ export function buildOutside(timeId) {
     if (!dragon && clock > nextDragon) {
       dragon = makeDragon(); fliers.add(dragon.g);
       const dirD = er() < 0.5 ? -1 : 1;
-      dragonState = { t: 0, a: -Math.PI / 2 - dirD * 0.95, dir: dirD, R: 230 + er() * 40, y: 95 + er() * 50, fireAt: 6 + er() * 6 };
+      // only now and then does it breathe fire
+      dragonState = { t: 0, a: -Math.PI / 2 - dirD * 0.95, dir: dirD, R: 230 + er() * 40, y: 95 + er() * 50, breathes: er() < 0.45, fireAt: 8 + er() * 14 };
     }
     if (dragon) {
       const s = dragonState; s.t += dt;
       if (!s.hold) s.a += s.dir * dt * 0.052;
       const x = Math.cos(s.a) * s.R; const z = Math.sin(s.a) * s.R - 20; const y = s.y + Math.sin(s.t * 0.45) * 9;
       dragon.g.position.set(x, y, z);
-      dragon.g.rotation.set(0, Math.atan2(camPos.x - x, camPos.z - z), Math.sin(s.t * 0.4) * 0.05);
       velV.set(-Math.sin(s.a) * s.dir, 0, Math.cos(s.a) * s.dir);
-      const rightX = Math.cos(dragon.g.rotation.y); const rightZ = -Math.sin(dragon.g.rotation.y);
-      dragon.g.scale.x = (velV.x * rightX + velV.z * rightZ >= 0 ? 1 : -1) * 150;
-      dragon.mats.forEach((m) => { m.uniforms.uTime.value = clock; });
-      const burning = s.t > s.fireAt && s.t < s.fireAt + 2.4;
-      dragon.fire.material.opacity = burning ? 0.85 * Math.sin(((s.t - s.fireAt) / 2.4) * Math.PI) : 0;
-      dragon.fire.scale.set(0.3 + (burning ? 0.5 : 0), 0.16, 1);
-      if (s.t > 50 && !s.hold) { fliers.remove(dragon.g); dragon = null; nextDragon = clock + 70 + er() * 70; }
+      // it flies along its path, turned a little towards the window so its wings can be seen
+      dragon.g.rotation.set(-s.dir * 0.16 + Math.sin(s.t * 0.5) * 0.05, Math.atan2(-velV.z, velV.x) - s.dir * 0.5, Math.cos(s.t * 0.45) * 0.07);
+      const k = (s.t - s.fireAt) / 3;
+      const burn = s.breathes && k > 0 && k < 1 ? Math.pow(Math.sin(Math.PI * k), 0.6) : 0;
+      dragon.update(clock, burn);
+      if (s.t > 50 && !s.hold) { fliers.remove(dragon.g); dragon.own.forEach((o) => o.dispose?.()); dragon = null; nextDragon = clock + 70 + er() * 70; }
     }
   };
 
@@ -675,7 +738,7 @@ export function buildOutside(timeId) {
     update,
     sunDir,
     summon: (what) => { if (what === 'dragon') nextDragon = 0; else nextFlock = 0; },
-    hold: (a) => { if (dragonState) { dragonState.hold = true; dragonState.a = a; dragonState.t = 3; } },
+    hold: (a, fire) => { if (dragonState) { dragonState.hold = true; dragonState.a = a; dragonState.t = 3; if (fire) { dragonState.breathes = true; dragonState.fireAt = 4; } } },
     windows: T.windows,
     sunColor: T.sun,
     dispose() { disposables.forEach((o) => o.dispose?.()); },
