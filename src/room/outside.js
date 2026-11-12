@@ -558,7 +558,7 @@ export function buildOutside(timeId) {
   };
   let dragon = null; let dragonState = null;
   const er = rng(1234);
-  let nextFlock = 4 + er() * 6; let nextDragon = 30 + er() * 35;
+  let nextFlock = 4 + er() * 6; let nextDragon = 25 + er() * 45;
   let clock = 0;
   // ───────── the dragon: a real 3D beast (tapering body, bones, leathery wings that join at the shoulders) ─────────
   const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -782,22 +782,27 @@ export function buildOutside(timeId) {
     }
     if (!dragon && clock > nextDragon) {
       dragon = makeDragon(); fliers.add(dragon.g);
-      const dirD = er() < 0.5 ? -1 : 1;
-      // only now and then does it breathe fire
-      dragonState = { t: 0, a: -Math.PI / 2 - dirD * 0.95, dir: dirD, R: 230 + er() * 40, y: 95 + er() * 50, breathes: er() < 0.45, fireAt: 8 + er() * 14 };
+      // each visit takes its own path: it flies in from the distance, or off into it, always off to one side of the castle
+      dragonState = { t: 0, T: 26 + er() * 10, side: er() < 0.5 ? -1 : 1, d0: 1.45 + er() * 0.3, d1: 0.38 + er() * 0.45, r0: 190 + er() * 90, r1: 520 + er() * 90, y: 70 + er() * 100, rev: er() < 0.5, breathes: er() < 0.3, fireAt: 6 + er() * 12, prev: null };
     }
     if (dragon) {
       const s = dragonState; s.t += dt;
-      if (!s.hold) s.a += s.dir * dt * 0.052;
-      const x = Math.cos(s.a) * s.R; const z = Math.sin(s.a) * s.R - 20; const y = s.y + Math.sin(s.t * 0.45) * 9;
+      let a; let R;
+      if (s.hold) { a = s.a; R = 250; } else {
+        const u0 = Math.min(1, s.t / s.T); const u = s.rev ? 1 - u0 : u0;
+        a = -Math.PI / 2 + s.side * lerp(s.d0, s.d1, u); R = lerp(s.r0, s.r1, u * u);
+      }
+      const x = Math.cos(a) * R; const z = Math.sin(a) * R - 20; const y = s.y + Math.sin(s.t * 0.45) * 9;
       dragon.g.position.set(x, y, z);
-      velV.set(-Math.sin(s.a) * s.dir, 0, Math.cos(s.a) * s.dir);
-      // it flies along its path, turned a little towards the window so its wings can be seen
-      dragon.g.rotation.set(-s.dir * 0.16 + Math.sin(s.t * 0.5) * 0.05, Math.atan2(-velV.z, velV.x) - s.dir * 0.5, Math.cos(s.t * 0.45) * 0.07);
+      if (s.hold) velV.set(-Math.sin(a) * (s.side || 1), 0, Math.cos(a) * (s.side || 1)); else if (s.prev) velV.set(x - s.prev.x, 0, z - s.prev.z);
+      if (velV.lengthSq() > 1e-8) s.heading = Math.atan2(-velV.z, velV.x);
+      s.prev = { x, z };
+      // turned a little towards the window so its wings can be seen
+      dragon.g.rotation.set(-s.side * 0.14 + Math.sin(s.t * 0.5) * 0.05, (s.heading ?? 0) + s.side * 0.35, Math.cos(s.t * 0.45) * 0.07);
       const k = (s.t - s.fireAt) / 3;
       const burn = s.breathes && k > 0 && k < 1 ? Math.pow(Math.sin(Math.PI * k), 0.6) : 0;
       dragon.update(clock, burn);
-      if (s.t > 50 && !s.hold) { fliers.remove(dragon.g); dragon.own.forEach((o) => o.dispose?.()); dragon = null; nextDragon = clock + 70 + er() * 70; }
+      if (s.t > s.T && !s.hold) { fliers.remove(dragon.g); dragon.own.forEach((o) => o.dispose?.()); dragon = null; nextDragon = clock + 60 + er() * 140; }
     }
   };
 
