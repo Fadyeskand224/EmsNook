@@ -1,4 +1,5 @@
 import { createClient } from '@libsql/client';
+import { rewardFor } from '../shared/items.js';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS users (
@@ -31,6 +32,24 @@ const SCHEMA = [
      expires_at INTEGER NOT NULL
    )`,
   'CREATE INDEX IF NOT EXISTS resets_user ON resets(user_id)',
+  // Coins: one entry per book a reader has finished (a book earns once, even if removed and added again).
+  `CREATE TABLE IF NOT EXISTS coin_log (
+     user_id  INTEGER NOT NULL,
+     work_key TEXT NOT NULL,
+     amount   INTEGER NOT NULL,
+     at       INTEGER NOT NULL,
+     PRIMARY KEY (user_id, work_key)
+   )`,
+  // What a reader has bought: placed is null while it is in the box, or JSON {x,y,z,ry,s} once it stands in the library.
+  `CREATE TABLE IF NOT EXISTS items (
+     id        INTEGER PRIMARY KEY,
+     user_id   INTEGER NOT NULL,
+     kind      TEXT NOT NULL,
+     price     INTEGER NOT NULL,
+     placed    TEXT,
+     bought_at INTEGER NOT NULL
+   )`,
+  'CREATE INDEX IF NOT EXISTS items_user ON items(user_id)',
   // Every book a user has saved: status is want (to read), reading, or read.
   `CREATE TABLE IF NOT EXISTS books (
      id           INTEGER PRIMARY KEY,
@@ -128,6 +147,13 @@ export async function openDb({ url, authToken } = {}) {
   if (!bookCols.includes('thick')) {
     await client.execute('ALTER TABLE books ADD COLUMN thick REAL');
     await client.execute('ALTER TABLE books ADD COLUMN tall REAL');
+  }
+
+  // Readers who finished books before coins existed are paid for them once.
+  const owed = await client.execute("SELECT user_id, work_key, pages FROM books WHERE status = 'read' AND NOT EXISTS (SELECT 1 FROM coin_log c WHERE c.user_id = books.user_id AND c.work_key = books.work_key)");
+  for (const r of owed.rows) {
+    const amount = rewardFor(Number(r.pages));
+    await client.execute({ sql: 'INSERT OR IGNORE INTO coin_log (user_id, work_key, amount, at) VALUES (?, ?, ?, ?)', args: [r.user_id, r.work_key, amount, Date.now()] });
   }
 
   const rowsOf = (r) => r.rows.map((row) => Object.fromEntries(r.columns.map((c) => [c, row[c]])));

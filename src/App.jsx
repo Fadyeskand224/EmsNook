@@ -1,12 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { setUnauthorizedHandler } from './lib/api';
 import { fetchCurrentUser, logOut, downloadMyData } from './lib/auth';
+import { buyItem, fetchEconomy, placeItem } from './lib/economy';
 import { addBook, fetchLibrary, fetchSettings, refreshBook, removeBook, reorderLibrary, fetchSeries, savePlaces, saveSettings, updateBook } from './lib/library';
 import { DEFAULT_SETTINGS } from '../shared/options.js';
 import Login from './components/Login';
 import Shelf from './components/Shelf';
 import { webglAvailable } from './room/gl';
 // three.js is only downloaded when the 3D room is opened
+const Shop = lazy(() => import('./components/Shop'));
 const Room3D = lazy(() => import('./room/Room3D'));
 import Wishlist from './components/Wishlist';
 import SearchSheet from './components/SearchSheet';
@@ -28,6 +30,9 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [customizing, setCustomizing] = useState(false);
   const [credits, setCredits] = useState(false);
+  const [economy, setEconomy] = useState({ coins: 0, items: [] });
+  const [shopOpen, setShopOpen] = useState(false);
+  const [placingId, setPlacingId] = useState(null);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const saveTimer = useRef(null);
   const [view, setView] = useState(() => (localStorage.getItem('emsnook-view') || (webglAvailable() ? 'room' : 'classic')));
@@ -72,6 +77,11 @@ export default function App() {
     return () => clearTimeout(t);
   }, [user, books]);
 
+  useEffect(() => {
+    if (!user) return;
+    fetchEconomy().then(setEconomy).catch(() => {});
+  }, [user]);
+
   // Look-and-feel choices: shown instantly from this device's copy, then confirmed from the account.
   useEffect(() => {
     if (!user) return;
@@ -111,13 +121,16 @@ export default function App() {
 
   const ensureSeries = async () => { const list = await fetchSeries(); setBooks(list); };
 
-  const put = (b) => setBooks((list) => list.map((x) => (x.id === b.id ? b : x)));
+  const put = (b) => { const { reward, ...book } = b; setBooks((list) => list.map((x) => (x.id === book.id ? book : x))); };
+  // Finishing a book pays coins once; say so and keep the balance in step with the server.
+  const paid = (reward, title) => { if (!reward) return; setEconomy((e) => ({ ...e, coins: reward.balance })); say(`+${reward.amount} coins for finishing “${title}”!`); };
 
   const add = async (book, status) => {
     try {
-      const saved = await addBook(book, status);
+      const { reward, ...saved } = await addBook(book, status);
       setBooks((list) => [saved, ...list]);
-      say(status === 'want' ? `“${saved.title}” is on your to-read list.` : `“${saved.title}” is on your shelf.`);
+      if (reward) paid(reward, saved.title);
+      else say(status === 'want' ? `“${saved.title}” is on your to-read list.` : `“${saved.title}” is on your shelf.`);
       return true;
     } catch (e) {
       say(e.message);
@@ -126,12 +139,27 @@ export default function App() {
   };
   const move = async (book, status) => {
     try {
-      put(await updateBook(book.id, { status }));
-      say(status === 'reading' ? 'Enjoy the read!' : status === 'read' ? 'Added to your finished shelf.' : 'Moved back to your list.');
+      const saved = await updateBook(book.id, { status });
+      put(saved);
+      if (saved.reward) paid(saved.reward, book.title);
+      else say(status === 'reading' ? 'Enjoy the read!' : status === 'read' ? 'Added to your finished shelf.' : 'Moved back to your list.');
     } catch (e) {
       say(e.message);
     }
   };
+
+  const buy = async (kind) => {
+    try {
+      const r = await buyItem(kind);
+      setEconomy((e) => ({ coins: r.coins, items: [...e.items, r.item] }));
+      return r.item;
+    } catch (e) { say(e.message); return null; }
+  };
+  const saveItem = async (id, placed) => {
+    setEconomy((e) => ({ ...e, items: e.items.map((i) => (i.id === id ? { ...i, placed } : i)) }));
+    try { await placeItem(id, placed); } catch (e) { say(e.message); fetchEconomy().then(setEconomy).catch(() => {}); }
+  };
+  const startPlacing = (id) => { setShopOpen(false); setDrawer(false); if (view !== 'room') chooseView('room'); setTab('shelf'); setPlacingId(id); };
 
   const openViewer = (book, rect, kind) => {
     setViewer({ id: book.id, origin: { rect, kind } });
@@ -168,6 +196,7 @@ export default function App() {
       <h4>Your nook</h4>
       <div className="rd-grid">
         <button onClick={() => { closeDrawer(); setSearching(true); }}>+ Add a book</button>
+        <button onClick={() => { closeDrawer(); setShopOpen(true); }}>Nook shop <b><span className="coin" aria-hidden="true" />{economy.coins}</b></button>
         <button onClick={() => { closeDrawer(); setScanning(true); }}>Scan a barcode</button>
         <button onClick={() => { closeDrawer(); setTab('want'); }}>To Read <b>{wantCount}</b></button>
         {canFull && <button onClick={() => { closeDrawer(); toggleFull(); }}>Full screen</button>}
@@ -188,6 +217,7 @@ export default function App() {
           <>
             <a className="brand" href="/" onClick={(e) => e.preventDefault()}><img src="/icon.svg" alt="" width="26" height="26" />EmsNook</a>
             <div className="top-actions">
+              <button className="btn btn-ghost coin-chip" onClick={() => setShopOpen(true)} aria-label={`Nook shop, ${economy.coins} coins`}><span className="coin" aria-hidden="true" />{economy.coins}</button>
               <button className="btn btn-ghost scan-btn" onClick={() => setSearching(true)} aria-label="Add a book">+</button>
               <button className={`btn btn-ghost burger ${drawer ? 'on' : ''}`} onClick={() => setDrawer(!drawer)} aria-label="Menu" aria-expanded={drawer}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">{drawer ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}</svg>
@@ -201,6 +231,7 @@ export default function App() {
           <button className={tab === 'want' ? 'on' : ''} onClick={() => setTab('want')}>To Read <b>{wantCount}</b></button>
         </nav>
         <div className="top-actions">
+          <button className="btn btn-ghost coin-chip" onClick={() => setShopOpen(true)} aria-label={`Nook shop, ${economy.coins} coins`}><span className="coin" aria-hidden="true" />{economy.coins}</button>
           <button className="btn btn-ghost scan-btn" onClick={() => setScanning(true)} aria-label="Scan a barcode"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 9v6M11 9v6M14 9v6M17 9v6" /></svg><span className="hide-sm">Scan</span></button>
           <button className="btn btn-primary" onClick={() => setSearching(true)}>+ <span className="hide-sm">Add a book</span></button>
           <div className="user">
@@ -221,7 +252,7 @@ export default function App() {
       <main>
         {tab === 'shelf'
           ? (view === 'room' && webglAvailable()
-            ? <Suspense fallback={<div className="room3d room-loading"><div className="spinner" aria-label="Opening the library" /></div>}><Room3D books={books} hiddenId={viewer?.id} settings={settings} onOpen={openViewer} onFind={() => setSearching(true)} onCustomize={() => setCustomizing(true)} onPlace={placeBook} onPlaceMany={placeMany} onEnsureSeries={ensureSeries} onClassic={() => chooseView('classic')} immersive={immersive} menuOpen={drawer} onMenuClose={closeDrawer} menuExtra={nookMenu} /></Suspense>
+            ? <Suspense fallback={<div className="room3d room-loading"><div className="spinner" aria-label="Opening the library" /></div>}><Room3D books={books} hiddenId={viewer?.id} settings={settings} onOpen={openViewer} onFind={() => setSearching(true)} onCustomize={() => setCustomizing(true)} onPlace={placeBook} onPlaceMany={placeMany} onEnsureSeries={ensureSeries} onClassic={() => chooseView('classic')} items={economy.items} placingId={placingId} onItemSave={saveItem} onEditDone={() => setPlacingId(null)} immersive={immersive} menuOpen={drawer} onMenuClose={closeDrawer} menuExtra={nookMenu} /></Suspense>
             : <Shelf books={books} hiddenId={viewer?.id} settings={settings} onOpen={openViewer} onFind={() => setSearching(true)} onCustomize={() => { setCustomizing(true); document.querySelector('.shelf-room')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} onReorder={reorder} onRoom={webglAvailable() ? () => chooseView('room') : null} />)
           : <Wishlist books={books} onOpen={openViewer} onStatus={move} onFind={() => setSearching(true)} />}
       </main>
@@ -239,6 +270,7 @@ export default function App() {
         </button>
       </nav>}
 
+      {shopOpen && <Suspense fallback={null}><Shop economy={economy} finished={books.filter((b) => b.status === 'read').length} onBuy={buy} onPlace={startPlacing} onClose={() => setShopOpen(false)} /></Suspense>}
       {scanning && <Suspense fallback={null}><ScanSheet library={books} onAdd={add} onClose={() => setScanning(false)} onSearch={() => { setScanning(false); setSearching(true); }} /></Suspense>}
       {searching && <SearchSheet library={books} onAdd={add} onClose={() => setSearching(false)} />}
       {current && (

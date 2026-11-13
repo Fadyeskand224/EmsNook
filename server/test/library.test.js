@@ -248,3 +248,42 @@ test('a book can be made thicker, thinner, taller or shorter on the shelf, withi
   for (const bad of [{ thick: 0.1 }, { thick: 5 }, { tall: 2 }, { tall: 'big' }]) assert.equal((await patch(bad)).status, 400);
   assert.equal((await patch({ thick: null, tall: null })).json.book.thick, null);
 });
+
+test('finishing a book earns coins once; coins buy plants that can be placed anywhere inside the library', async () => {
+  const cookie = await signup('coins@example.com');
+  const search = (await call('/books/search?q=the hobbit', { cookie })).json.results[0];
+  assert.equal((await call('/economy', { cookie })).json.coins, 0);
+  const add = await call('/library', { method: 'POST', cookie, body: { book: search, status: 'want' } });
+  assert.equal(add.json.reward, null);
+  const id = add.json.book.id;
+  const finish = await call(`/library/${id}`, { method: 'PATCH', cookie, body: { status: 'read' } });
+  assert.equal(finish.json.reward.amount, 17); // 10 + 300 pages / 40
+  assert.equal(finish.json.reward.balance, 17);
+  // reading it again, or removing it and adding it back finished, earns nothing more
+  await call(`/library/${id}`, { method: 'PATCH', cookie, body: { status: 'reading' } });
+  assert.equal((await call(`/library/${id}`, { method: 'PATCH', cookie, body: { status: 'read' } })).json.reward, null);
+  await call(`/library/${id}`, { method: 'DELETE', cookie });
+  assert.equal((await call('/library', { method: 'POST', cookie, body: { book: search, status: 'read' } })).json.reward, null);
+  assert.equal((await call('/economy', { cookie })).json.coins, 17);
+
+  // the shop: only known items, only with enough coins, and the price is the server's
+  assert.equal((await call('/shop/buy', { method: 'POST', cookie, body: { kind: 'unicorn' } })).status, 400);
+  assert.equal((await call('/shop/buy', { method: 'POST', cookie, body: { kind: 'palm', price: 1 } })).status, 402);
+  const bought = await call('/shop/buy', { method: 'POST', cookie, body: { kind: 'succulent' } });
+  assert.equal(bought.status, 201);
+  assert.equal(bought.json.coins, 7);
+  assert.equal((await call('/shop/buy', { method: 'POST', cookie, body: { kind: 'cactus' } })).status, 402);
+
+  // placing: anywhere inside the room, never outside it, and only your own things
+  const itemId = bought.json.item.id;
+  const spot = { x: 2.5, y: 0.75, z: -3.2, ry: 1.2, s: 1.1 };
+  const placed = await call(`/items/${itemId}`, { method: 'PATCH', cookie, body: { placed: spot } });
+  assert.deepEqual(placed.json.item.placed, spot);
+  for (const bad of [{ ...spot, x: 99 }, { ...spot, y: 50 }, { ...spot, s: 9 }, { ...spot, z: 'far' }, { x: 1 }]) assert.equal((await call(`/items/${itemId}`, { method: 'PATCH', cookie, body: { placed: bad } })).status, 400);
+  assert.deepEqual((await call('/economy', { cookie })).json.items, [{ id: itemId, kind: 'succulent', placed: spot }]);
+  assert.equal((await call(`/items/${itemId}`, { method: 'PATCH', cookie, body: { placed: null } })).json.item.placed, null);
+  const other = await signup('coins-other@example.com');
+  assert.equal((await call(`/items/${itemId}`, { method: 'PATCH', cookie: other, body: { placed: spot } })).status, 404);
+  assert.equal((await call('/economy', { cookie: other })).json.coins, 0);
+  assert.equal((await call('/shop/buy', { method: 'POST', cookie: other, body: { kind: 'succulent' } })).status, 402);
+});

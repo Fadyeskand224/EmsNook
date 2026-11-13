@@ -2,8 +2,9 @@ import { api, ApiError } from './api';
 
 export const searchBooks = async (q, signal) => (await api(`/books/search?q=${encodeURIComponent(q)}`, { signal })).results;
 export const fetchLibrary = async () => (await api('/library')).books;
-export const addBook = async (book, status) => (await api('/library', { method: 'POST', body: { book, status } })).book;
-export const updateBook = async (id, patch) => (await api(`/library/${id}`, { method: 'PATCH', body: patch })).book;
+// add and update also say whether finishing the book earned coins: { ...book, reward: { amount, balance } | null }
+export const addBook = async (book, status) => { const r = await api('/library', { method: 'POST', body: { book, status } }); return { ...r.book, reward: r.reward ?? null }; };
+export const updateBook = async (id, patch) => { const r = await api(`/library/${id}`, { method: 'PATCH', body: patch }); return { ...r.book, reward: r.reward ?? null }; };
 export const lookupIsbn = async (isbn) => (await api(`/books/isbn/${encodeURIComponent(isbn)}`)).result;
 export const fetchSeries = async () => (await api('/library/series', { method: 'POST' })).books;
 export const fetchLog = async (id) => (await api(`/library/${id}/log`)).log;

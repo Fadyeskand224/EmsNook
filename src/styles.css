@@ -737,3 +737,38 @@ html:has(.app.immersive), html:has(.app.immersive) body { overflow: hidden; over
 .login-note { margin: 0; font-size: 0.95rem; color: var(--muted); }
 .login-note b { color: var(--text); }
 .form-notice { padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(224, 164, 88, 0.45); background: rgba(224, 164, 88, 0.1); color: var(--amber-hi); font-size: 0.92rem; }
+
+/* ───────── coins and the nook shop ───────── */
+.coin { display: inline-block; width: 1em; height: 1em; border-radius: 50%; vertical-align: -0.12em; margin-right: 0.35em; background: radial-gradient(circle at 35% 30%, #fff1b3, #e8b53c 55%, #a8741c); box-shadow: inset 0 0 0 0.09em rgba(122, 74, 28, 0.55); }
+.shop-sheet { gap: 12px; overflow-y: auto; }
+.shop-sheet header { gap: 12px; }
+.shop-sheet header h2 { margin-right: auto; }
+.shop-coins { display: inline-flex; align-items: center; padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(224, 164, 88, 0.55); background: rgba(224, 164, 88, 0.12); font-weight: 700; font-size: 1.05rem; color: var(--amber-hi); }
+.shop-lead { margin: 0; color: var(--muted); font-size: 0.92rem; }
+.shop-lead b { color: var(--text); }
+.shop-tabs { justify-self: start; }
+.shop-bought { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--amber); background: rgba(224, 164, 88, 0.12); }
+.shop-bought span { margin-right: auto; }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding-bottom: 8px; }
+.shop-card { display: grid; align-content: start; gap: 4px; padding: 10px; border-radius: 16px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); }
+.shop-card.locked .shop-pic img { filter: grayscale(0.6) brightness(0.8); }
+.shop-card h3 { margin: 4px 0 0; font-size: 0.98rem; }
+.shop-card small { color: var(--muted); line-height: 1.3; min-height: 2.6em; }
+.shop-pic { aspect-ratio: 1; display: grid; place-items: center; border-radius: 12px; background: radial-gradient(circle at 50% 40%, rgba(255, 224, 170, 0.14), rgba(0, 0, 0, 0.25)); }
+.shop-pic img { width: 100%; height: 100%; object-fit: contain; }
+.shop-buy { justify-self: stretch; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
+.shop-buy i { font-style: normal; font-weight: 400; opacity: 0.7; margin-left: 4px; font-size: 0.8em; }
+.shop-buy:disabled { opacity: 0.55; }
+.shop-empty { color: var(--muted); }
+.coin-chip { display: inline-flex; align-items: center; gap: 0; padding: 0 12px; font-weight: 700; }
+
+/* ───────── placing a plant ───────── */
+.r-edit { position: absolute; z-index: 4; left: 50%; top: 64px; transform: translateX(-50%); width: min(430px, calc(100% - 24px)); display: grid; grid-template-columns: 1fr; gap: 2px; padding: 10px 12px; border-radius: 18px; background: rgba(20, 12, 7, 0.9); border: 1px solid var(--amber); backdrop-filter: blur(8px); }
+.r-edit b { font-size: 1rem; }
+.r-edit small { opacity: 0.7; }
+.re-btns { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
+.re-btns button { min-width: 38px; min-height: 38px; padding: 0 10px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.07); color: inherit; font-size: 1.1rem; font-weight: 700; }
+.re-btns .away { margin-left: auto; font-size: 0.85rem; color: var(--muted); }
+.re-btns .done { background: linear-gradient(180deg, var(--amber-hi), #d58f3c); color: #2a1608; border-color: transparent; font-size: 0.9rem; }
+.app.immersive .r-edit { top: calc(var(--safe-t) + 54px); }
+.app.immersive .top-actions .btn.coin-chip { display: inline-flex; align-items: center; justify-content: center; gap: 2px; font-size: 16px; padding: 0 12px; }

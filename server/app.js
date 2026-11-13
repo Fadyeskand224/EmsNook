@@ -7,8 +7,9 @@ import path from 'node:path';
 import { hashPassword, verifyPassword, dummyVerify, passwordProblem } from './passwords.js';
 import { createSessionStore, SESSION_DAYS } from './sessions.js';
 import { createAttemptTracker } from './attempts.js';
-import { validateEmail, validateName, validateNewBook, validateSettings, validateOrder, validatePlace, STATUSES } from './validate.js';
+import { validateEmail, validateName, validateNewBook, validateSettings, validateOrder, validatePlace, validateItemPlace, STATUSES } from './validate.js';
 import { DEFAULT_SETTINGS } from '../shared/options.js';
+import { rewardFor, SHOP_BY_KIND, MAX_ITEMS, PLACE_LIMITS } from '../shared/items.js';
 import { createMailer } from './mail.js';
 import { createBookLookup, normIsbn, UpstreamError } from './books.js';
 
@@ -153,6 +154,43 @@ export function createApp({ db, prod = false, distDir = null, allowedOrigins = [
 
   api.get('/health', (req, res) => res.json({ ok: true }));
 
+  // ───────── Coins and the shop ─────────
+  // The balance is never stored: it is every finished book's reward minus every purchase, so it cannot drift.
+  const balanceOf = async (userId) => {
+    const earned = await db.get('SELECT COALESCE(SUM(amount), 0) AS n FROM coin_log WHERE user_id = ?', [userId]);
+    const spent = await db.get('SELECT COALESCE(SUM(price), 0) AS n FROM items WHERE user_id = ?', [userId]);
+    return earned.n - spent.n;
+  };
+  // Called when a book becomes "read". Each book (by work) pays out once, ever, so toggling or re-adding it earns nothing more.
+  const payForBook = async (userId, workKey, pages) => {
+    const amount = rewardFor(pages);
+    const info = await db.run('INSERT OR IGNORE INTO coin_log (user_id, work_key, amount, at) VALUES (?, ?, ?, ?)', [userId, workKey, amount, Date.now()]);
+    return info.changes ? { amount, balance: await balanceOf(userId) } : null;
+  };
+  const toItem = (r) => ({ id: r.id, kind: r.kind, placed: r.placed ? JSON.parse(r.placed) : null });
+  api.get('/economy', requireAuth, h(async (req, res) => {
+    const items = await db.all('SELECT * FROM items WHERE user_id = ? ORDER BY id', [req.user.id]);
+    res.json({ coins: await balanceOf(req.user.id), items: items.map(toItem) });
+  }));
+  api.post('/shop/buy', requireAuth, h(async (req, res) => {
+    const def = SHOP_BY_KIND[(req.body || {}).kind];
+    if (!def) return res.status(400).json({ error: 'That item is not in the shop.' });
+    const owned = await db.get('SELECT COUNT(*) AS n FROM items WHERE user_id = ?', [req.user.id]);
+    if (owned.n >= MAX_ITEMS) return res.status(400).json({ error: 'Your library cannot hold any more.' });
+    if ((await balanceOf(req.user.id)) < def.price) return res.status(402).json({ error: `You need ${def.price} coins for that. Finish a book to earn more.` });
+    const info = await db.run('INSERT INTO items (user_id, kind, price, placed, bought_at) VALUES (?, ?, ?, NULL, ?)', [req.user.id, def.kind, def.price, Date.now()]);
+    res.status(201).json({ item: { id: info.lastInsertRowid, kind: def.kind, placed: null }, coins: await balanceOf(req.user.id) });
+  }));
+  api.patch('/items/:id', requireAuth, h(async (req, res) => {
+    const id = Number(req.params.id);
+    const row = Number.isInteger(id) && (await db.get('SELECT * FROM items WHERE id = ? AND user_id = ?', [id, req.user.id]));
+    if (!row) return res.status(404).json({ error: 'Item not found.' });
+    const v = validateItemPlace((req.body || {}).placed, PLACE_LIMITS);
+    if (!v.ok) return res.status(400).json({ error: 'That spot is not inside the library.' });
+    await db.run('UPDATE items SET placed = ? WHERE id = ?', [v.value ? JSON.stringify(v.value) : null, id]);
+    res.json({ item: { id, kind: row.kind, placed: v.value } });
+  }));
+
   // ───────── Auth ─────────
   api.post('/auth/signup', signupLimiter, h(async (req, res) => {
     const { name, email, password, confirm } = req.body || {};
@@ -266,6 +304,8 @@ export function createApp({ db, prod = false, distDir = null, allowedOrigins = [
       account: { id: account.id, name: account.name, email: account.email, createdAt: new Date(account.created_at).toISOString() },
       settings: prefs ? JSON.parse(prefs.json) : null,
       books: books.map(toBook),
+      coins: await balanceOf(req.user.id),
+      items: (await db.all('SELECT * FROM items WHERE user_id = ? ORDER BY id', [req.user.id])).map(toItem),
     });
   }));
 
@@ -299,6 +339,8 @@ export function createApp({ db, prod = false, distDir = null, allowedOrigins = [
     await db.batch([
       ['DELETE FROM sessions WHERE user_id = ?', [req.user.id]],
       ['DELETE FROM resets WHERE user_id = ?', [req.user.id]],
+      ['DELETE FROM coin_log WHERE user_id = ?', [req.user.id]],
+      ['DELETE FROM items WHERE user_id = ?', [req.user.id]],
       ['DELETE FROM spines WHERE user_id = ?', [req.user.id]],
       ['DELETE FROM reading_log WHERE user_id = ?', [req.user.id]],
       ['DELETE FROM books WHERE user_id = ?', [req.user.id]],
@@ -373,8 +415,9 @@ export function createApp({ db, prod = false, distDir = null, allowedOrigins = [
       [req.user.id, b.workKey, b.title, b.authors, b.coverUrl, b.isbn, b.pages, b.year, status, now,
         status === 'want' ? null : now, status === 'read' ? now : null, b.series, b.seriesNo]
     );
+    const reward = status === 'read' ? await payForBook(req.user.id, b.workKey, b.pages) : null;
     const row = await enrich(await db.get(`${BOOKS_Q} WHERE b.id = ?`, [info.lastInsertRowid]));
-    res.status(201).json({ book: toBook(row) });
+    res.status(201).json({ book: toBook(row), reward });
   }));
 
   api.patch('/library/:id', requireAuth, h(async (req, res) => {
@@ -439,7 +482,8 @@ export function createApp({ db, prod = false, distDir = null, allowedOrigins = [
     }
     if (!sets.length) return res.status(400).json({ error: 'Nothing to change.' });
     await db.run(`UPDATE books SET ${sets.join(', ')} WHERE id = ?`, [...args, id]);
-    res.json({ book: toBook(await owned(req, id)) });
+    const reward = status === 'read' ? await payForBook(req.user.id, row.work_key, total || row.pages) : null;
+    res.json({ book: toBook(await owned(req, id)), reward });
   }));
 
   // Works out series for books that have not been checked yet, so shelves can be arranged by series.

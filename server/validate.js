@@ -76,3 +76,14 @@ export function validatePlace(p) {
   if (typeof x !== 'number' || !Number.isFinite(x) || x < 0 || x > 12) return { ok: false };
   return { ok: true, value: { run, x: Math.round(x * 1000) / 1000 } };
 }
+
+/** Where an owned item stands in the library: null (back in the box) or {x, y, z, ry, s}. */
+export function validateItemPlace(p, L) {
+  if (p === null) return { ok: true, value: null };
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return { ok: false };
+  const { x, y, z, ry, s } = p;
+  const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
+  if (!num(x, -L.x, L.x) || !num(y, L.yLo, L.yHi) || !num(z, -L.z, L.z) || !num(ry, -7, 7) || !num(s, L.sLo, L.sHi)) return { ok: false };
+  const r = (v) => Math.round(v * 1000) / 1000;
+  return { ok: true, value: { x: r(x), y: r(y), z: r(z), ry: r(ry), s: r(s) } };
+}

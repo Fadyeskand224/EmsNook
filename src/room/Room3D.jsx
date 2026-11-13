@@ -4,6 +4,8 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { buildRoom, ROOM } from './world';
 import { coverCanvas, toTexture } from './textures';
 import { createBooks } from './books3d';
+import { buildItem } from './items3d';
+import { PLACE_LIMITS, SHOP_BY_KIND } from '../../shared/items';
 import { spineDesign } from '../lib/spine';
 import { percentOf } from '../lib/progress';
 import { organizeOrder } from '../lib/series';
@@ -29,7 +31,7 @@ function walkable(level, x, z) {
   return !OBST.some(([ox, oz, r]) => (x - ox) ** 2 + (z - oz) ** 2 < r * r);
 }
 
-export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onPlaceMany, onEnsureSeries, onScan, onFind, onCustomize, onClassic, immersive = false, menuOpen = false, onMenuClose, menuExtra = null }) {
+export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onPlaceMany, onEnsureSeries, onScan, onFind, onCustomize, onClassic, items = [], placingId = null, onItemSave, onEditDone, immersive = false, menuOpen = false, onMenuClose, menuExtra = null }) {
   const wrap = useRef(null);
   const canvasRef = useRef(null);
   const host = useRef(null);
@@ -44,12 +46,13 @@ export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onP
   const [note, setNote] = useState('');
   const [failed, setFailed] = useState(false);
   const [lampOn, setLampOn] = useState(true);
+  const [editing, setEditing] = useState(null); // the plant or treasure being placed: { id, name }
   const [touch] = useState(() => window.matchMedia?.('(pointer: coarse)').matches);
 
   usePalettes(books);
   const sorted = useMemo(() => shelfSort(books), [books]);
   const latest = useRef({});
-  latest.current = { books, sorted, settings, hiddenId, onOpen, onPlace, onPlaceMany, onEnsureSeries };
+  latest.current = { books, sorted, settings, hiddenId, onOpen, onPlace, onPlaceMany, onEnsureSeries, items, onItemSave, onEditDone };
 
   // ───────── set up once ─────────
   useEffect(() => {
@@ -399,7 +402,96 @@ export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onP
       return S.booksLayer.findSlot(h.point, H.src.userData.w, H.src.userData.h, H.book.id);
     };
 
+    // ───────── plants and decor the reader has bought, standing wherever they chose ─────────
+    const itemsGroup = new THREE.Group();
+    scene.add(itemsGroup);
+    const itemModels = new Map();
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 40), new THREE.MeshBasicMaterial({ color: 0xffc46b, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2; ring.visible = false; ring.renderOrder = 6; scene.add(ring);
+    const applyPlaced = (m, pl) => { m.position.set(pl.x, pl.y, pl.z); m.rotation.y = pl.ry; m.scale.setScalar(pl.s); };
+    const dropModel = (m) => { itemsGroup.remove(m); m.traverse((o) => { o.geometry?.dispose?.(); }); };
+    const syncRing = () => {
+      const E = S.edit; const m = E && itemModels.get(E.id);
+      ring.visible = !!m;
+      if (m) { const r = (m.userData.radius || 0.15) * E.placed.s + 0.07; ring.scale.set(r, r, r); ring.position.set(E.placed.x, E.placed.y + 0.012, E.placed.z); }
+    };
+    api.current.syncItems = () => {
+      const list = latest.current.items || [];
+      const live = new Set();
+      for (const it of list) {
+        const pl = S.edit && S.edit.id === it.id ? S.edit.placed : it.placed;
+        if (!pl) continue;
+        live.add(it.id);
+        let m = itemModels.get(it.id);
+        if (!m) { m = buildItem(it.kind); m.userData.itemId = it.id; itemsGroup.add(m); itemModels.set(it.id, m); }
+        applyPlaced(m, pl);
+      }
+      for (const [id, m] of [...itemModels]) if (!live.has(id)) { dropModel(m); itemModels.delete(id); }
+      syncRing();
+    };
+    // the first surface under the pointer that something can stand on: floors, rugs, desk tops, shelves, the mantel, the gallery
+    const surfaceHit = (e) => {
+      setRay(e);
+      const n = new THREE.Vector3();
+      for (const h of ray.intersectObject(S.world.root, true)) {
+        const o = h.object;
+        if (!o.visible || o.isSprite || o.isPoints || o.isLine || o.userData?.noPick || o.material?.depthWrite === false || !h.face) continue;
+        n.copy(h.face.normal).transformDirection(o.matrixWorld);
+        if (n.y < 0.6) { if (o.material?.transparent) continue; return null; } // something in the way that is not a surface
+        const L = PLACE_LIMITS;
+        if (Math.abs(h.point.x) > L.x || Math.abs(h.point.z) > L.z) return null;
+        return h.point.clone();
+      }
+      return null;
+    };
+    const itemAt = (e) => {
+      setRay(e);
+      const h = ray.intersectObjects(itemsGroup.children, true).find((x) => !x.object.isSprite && !x.object.userData?.noPick);
+      if (!h) return null;
+      let m = h.object; while (m && m.userData.itemId === undefined) m = m.parent;
+      return m ? { id: m.userData.itemId, distance: h.distance } : null;
+    };
+    const saveEdit = () => { const E = S.edit; if (E) latest.current.onItemSave?.(E.id, { ...E.placed }); };
+    const startEdit = (id) => {
+      const it = (latest.current.items || []).find((i) => i.id === id);
+      if (!it) return;
+      const def = SHOP_BY_KIND[it.kind];
+      cancelTween(); exitBrowse(); setHint(false);
+      let pl = it.placed;
+      if (!pl) {
+        // a new arrival is set down in front of you
+        const f = new THREE.Vector3(-Math.sin(S.yaw), 0, -Math.cos(S.yaw));
+        const aim = { clientX: canvasRef.current.getBoundingClientRect().left + canvasRef.current.clientWidth / 2, clientY: canvasRef.current.getBoundingClientRect().top + canvasRef.current.clientHeight * 0.72 };
+        const p = surfaceHit(aim) || new THREE.Vector3(S.pos.x + f.x * 1.8, S.level === 'upper' ? ROOM.gallery : 0, S.pos.z + f.z * 1.8);
+        pl = { x: p.x, y: p.y, z: p.z, ry: S.yaw, s: 1 };
+      }
+      S.edit = { id, placed: { ...pl } };
+      setEditing({ id, name: def?.name || 'Item' });
+      api.current.syncItems();
+      if (!it.placed) saveEdit();
+    };
+    api.current.editItem = startEdit;
+    const stopEdit = () => { S.edit = null; setEditing(null); syncRing(); latest.current.onEditDone?.(); };
+    api.current.editRotate = (d) => { const E = S.edit; if (!E) return; E.placed.ry += d * (Math.PI / 8); api.current.syncItems(); saveEdit(); };
+    api.current.editScale = (d) => { const E = S.edit; if (!E) return; E.placed.s = clamp(Math.round((E.placed.s + d * 0.15) * 100) / 100, PLACE_LIMITS.sLo, PLACE_LIMITS.sHi); api.current.syncItems(); saveEdit(); };
+    api.current.editDone = stopEdit;
+    api.current.editAway = () => { const E = S.edit; if (!E) return; const id = E.id; S.edit = null; setEditing(null); latest.current.onItemSave?.(id, null); latest.current.onEditDone?.(); };
+    // a tap while placing moves the item there; a tap on another item switches to it
+    const editTap = (e) => {
+      const it = itemAt(e);
+      if (it && it.id !== S.edit.id) { startEdit(it.id); return; }
+      const p = surfaceHit(e);
+      if (!p) return;
+      Object.assign(S.edit.placed, { x: p.x, y: p.y, z: p.z });
+      api.current.syncItems(); saveEdit();
+    };
+
     const act = (e) => {
+      if (S.edit) { editTap(e); return; }
+      if (!S.held) {
+        const it = itemAt(e);
+        if (it) { const first = hits(e)[0]; if (!first || it.distance < first.distance) { startEdit(it.id); return; } }
+      }
       // the book in your hand comes first: tap it to open it
       if (S.held && S.held.mode === 'hold') {
         setRay(e);
@@ -615,6 +707,7 @@ export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onP
       camera.position.copy(S.pos);
       camera.rotation.set(S.pitch, S.yaw, 0);
       S.world.update(dt);
+      itemModels.forEach((m) => m.userData.update?.(clock.elapsedTime));
       S.booksLayer.update(dt, S.dragId);
       updateHeld(dt, performance.now() / 1000);
       renderer.toneMappingExposure = S.world.exposure();
@@ -637,6 +730,7 @@ export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onP
       el.removeEventListener('webglcontextlost', lost);
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku);
       if (S.held) { handScene.remove(S.held.model); S.held = null; }
+      itemModels.forEach(dropModel); itemModels.clear();
       S.booksLayer?.dispose(); S.world?.dispose(); pm.dispose();
       renderer.dispose();
       renderer.forceContextLoss?.();
@@ -645,7 +739,8 @@ export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onP
   }, []);
 
   // books, look and the open viewer change without rebuilding the room
-  useEffect(() => { api.current.sync?.(); });
+  useEffect(() => { api.current.sync?.(); api.current.syncItems?.(); });
+  useEffect(() => { if (placingId != null) api.current.editItem?.(placingId); }, [placingId]);
 
   if (failed) {
     return (
@@ -702,7 +797,21 @@ export default function Room3D({ books, hiddenId, settings, onOpen, onPlace, onP
           </aside>
         </>
       )}
-      {hint && (
+      {editing && (
+        <div className="r-edit" role="group" aria-label={`Placing ${editing.name}`}>
+          <b>{editing.name}</b>
+          <small>{touch ? 'Tap anywhere to move it' : 'Click anywhere to move it'}</small>
+          <div className="re-btns">
+            <button onClick={() => api.current.editRotate(-1)} aria-label="Turn left">⟲</button>
+            <button onClick={() => api.current.editRotate(1)} aria-label="Turn right">⟳</button>
+            <button onClick={() => api.current.editScale(-1)} aria-label="Smaller">−</button>
+            <button onClick={() => api.current.editScale(1)} aria-label="Bigger">+</button>
+            <button className="away" onClick={() => api.current.editAway()}>Put away</button>
+            <button className="done" onClick={() => api.current.editDone()}>Done</button>
+          </div>
+        </div>
+      )}
+      {hint && !editing && (
         <div className="r-hint" role="note">
           <b>Step into the library.</b>
           <span>{touch ? 'Drag to look around · tap the floor to walk · tap a book to pick it up · tap it again to open · tap a shelf to put it down' : 'Drag to look · W A S D or arrows to walk · click a book to pick it up · tap it again to open it · tap a shelf to put it down · click the fire, globe, lamps and ladder'}</span>
