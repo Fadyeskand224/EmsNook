@@ -8,6 +8,7 @@ import Login from './components/Login';
 import Shelf from './components/Shelf';
 import { webglAvailable } from './room/gl';
 // three.js is only downloaded when the 3D room is opened
+import MyBooks from './components/MyBooks';
 const Shop = lazy(() => import('./components/Shop'));
 const Room3D = lazy(() => import('./room/Room3D'));
 import Wishlist from './components/Wishlist';
@@ -193,6 +194,7 @@ export default function App() {
 
   const nookMenu = (
     <>
+      <MyBooks books={books} onOpen={(book, rect) => { closeDrawer(); openViewer(book, rect, 'card'); }} />
       <h4>Your nook</h4>
       <div className="rd-grid">
         <button onClick={() => { closeDrawer(); setSearching(true); }}>+ Add a book</button>
@@ -219,8 +221,9 @@ export default function App() {
             <div className="top-actions">
               <button className="btn btn-ghost coin-chip" onClick={() => setShopOpen(true)} aria-label={`Nook shop, ${economy.coins} coins`}><span className="coin" aria-hidden="true" />{economy.coins}</button>
               <button className="btn btn-ghost scan-btn" onClick={() => setSearching(true)} aria-label="Add a book">+</button>
-              <button className={`btn btn-ghost burger ${drawer ? 'on' : ''}`} onClick={() => setDrawer(!drawer)} aria-label="Menu" aria-expanded={drawer}>
+              <button className={`btn btn-ghost burger ${drawer ? 'on' : ''}`} onClick={() => setDrawer(!drawer)} aria-label={`Menu, ${books.length} books`} aria-expanded={drawer}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">{drawer ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}</svg>
+                {!drawer && books.length > 0 && <span className="burger-count" aria-hidden="true">{books.length > 999 ? '999+' : books.length}</span>}
               </button>
             </div>
           </>

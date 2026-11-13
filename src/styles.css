@@ -772,3 +772,26 @@ html:has(.app.immersive), html:has(.app.immersive) body { overflow: hidden; over
 .re-btns .done { background: linear-gradient(180deg, var(--amber-hi), #d58f3c); color: #2a1608; border-color: transparent; font-size: 0.9rem; }
 .app.immersive .r-edit { top: calc(var(--safe-t) + 54px); }
 .app.immersive .top-actions .btn.coin-chip { display: inline-flex; align-items: center; justify-content: center; gap: 2px; font-size: 16px; padding: 0 12px; }
+
+/* ───────── "My books" in the pull-out menu, and the count on the menu button ───────── */
+.app.immersive .top-actions .burger { position: relative; }
+.burger-count { position: absolute; top: -6px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--terra, #d9774a); color: #2a1608; font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; box-shadow: 0 0 0 2px rgba(20, 12, 7, 0.9); pointer-events: none; }
+.mybooks { margin-bottom: 8px; }
+.mb-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.mb-tabs button { flex: 1 1 auto; min-height: 36px; padding: 0 8px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); color: var(--muted); font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+.mb-tabs button b { margin-left: 5px; font-weight: 700; opacity: 0.8; }
+.mb-tabs button.on { border-color: rgba(224, 164, 88, 0.6); background: rgba(224, 164, 88, 0.14); color: var(--amber-hi); }
+.mb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 40dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.mb-list li button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 12px; border: 0; background: rgba(255, 255, 255, 0.04); color: inherit; text-align: left; }
+.mb-list li button:active { background: rgba(224, 164, 88, 0.2); }
+.mb-cover { flex: none; width: 34px; height: 51px; border-radius: 4px; overflow: hidden; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
+.mb-cover img, .mb-cover .cover-fallback { width: 100%; height: 100%; object-fit: cover; }
+.mb-cover .cover-fallback { font-size: 5px; padding: 3px; }
+.mb-text { display: grid; min-width: 0; flex: 1; }
+.mb-text strong { font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mb-text small { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mb-dot { flex: none; font-style: normal; font-size: 0.68rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.mb-dot.st-reading { color: var(--amber-hi); border-color: rgba(224, 164, 88, 0.5); }
+.mb-pct { flex: none; font-style: normal; font-size: 0.78rem; font-weight: 700; color: var(--amber-hi); }
+.mb-empty { margin: 4px 2px 8px; color: var(--muted); font-size: 0.9rem; }
+.r-drawer .mybooks h4 { margin-top: 14px; }
