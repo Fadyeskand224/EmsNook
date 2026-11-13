@@ -149,6 +149,14 @@ export async function openDb({ url, authToken } = {}) {
     await client.execute('ALTER TABLE books ADD COLUMN tall REAL');
   }
 
+  // The shop is meant to feel like an achievement, so rewards were lowered: re-price what was already earned, once.
+  await client.execute('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)');
+  const done = await client.execute("SELECT 1 FROM meta WHERE key = 'economy_v2'");
+  if (!done.rows.length) {
+    await client.execute(`UPDATE coin_log SET amount = COALESCE((SELECT 5 + CASE WHEN b.pages > 0 THEN MIN(5, b.pages / 100) ELSE 2 END FROM books b WHERE b.user_id = coin_log.user_id AND b.work_key = coin_log.work_key LIMIT 1), amount)`);
+    await client.execute("INSERT OR IGNORE INTO meta (key, value) VALUES ('economy_v2', '1')");
+  }
+
   // Readers who finished books before coins existed are paid for them once.
   const owed = await client.execute("SELECT user_id, work_key, pages FROM books WHERE status = 'read' AND NOT EXISTS (SELECT 1 FROM coin_log c WHERE c.user_id = books.user_id AND c.work_key = books.work_key)");
   for (const r of owed.rows) {

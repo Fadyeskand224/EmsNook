@@ -257,22 +257,30 @@ test('finishing a book earns coins once; coins buy plants that can be placed any
   assert.equal(add.json.reward, null);
   const id = add.json.book.id;
   const finish = await call(`/library/${id}`, { method: 'PATCH', cookie, body: { status: 'read' } });
-  assert.equal(finish.json.reward.amount, 17); // 10 + 300 pages / 40
-  assert.equal(finish.json.reward.balance, 17);
+  assert.equal(finish.json.reward.amount, 8); // 5 + 300 pages / 100
+  assert.equal(finish.json.reward.balance, 8);
   // reading it again, or removing it and adding it back finished, earns nothing more
   await call(`/library/${id}`, { method: 'PATCH', cookie, body: { status: 'reading' } });
   assert.equal((await call(`/library/${id}`, { method: 'PATCH', cookie, body: { status: 'read' } })).json.reward, null);
   await call(`/library/${id}`, { method: 'DELETE', cookie });
   assert.equal((await call('/library', { method: 'POST', cookie, body: { book: search, status: 'read' } })).json.reward, null);
-  assert.equal((await call('/economy', { cookie })).json.coins, 17);
+  assert.equal((await call('/economy', { cookie })).json.coins, 8);
+  // (a reader who has finished many more books: pay them 60 so the shop can be tested)
+  const me = await db.get('SELECT id FROM users WHERE email = ?', ['coins@example.com']);
+  await db.run('INSERT INTO coin_log (user_id, work_key, amount, at) VALUES (?, ?, ?, ?)', [me.id, 'OLtest', 60, Date.now()]);
+  assert.equal((await call('/shop/buy', { method: 'POST', cookie, body: { kind: 'succulent' } })).status, 201);
+  assert.equal((await call('/economy', { cookie })).json.coins, 38);
+  assert.equal((await call('/shop/buy', { method: 'POST', cookie, body: { kind: 'cactus' } })).status, 402);
+  const first = (await call('/economy', { cookie })).json.items[0];
+  await db.run('DELETE FROM items WHERE id = ?', [first.id]);
 
   // the shop: only known items, only with enough coins, and the price is the server's
   assert.equal((await call('/shop/buy', { method: 'POST', cookie, body: { kind: 'unicorn' } })).status, 400);
   assert.equal((await call('/shop/buy', { method: 'POST', cookie, body: { kind: 'palm', price: 1 } })).status, 402);
   const bought = await call('/shop/buy', { method: 'POST', cookie, body: { kind: 'succulent' } });
   assert.equal(bought.status, 201);
-  assert.equal(bought.json.coins, 7);
-  assert.equal((await call('/shop/buy', { method: 'POST', cookie, body: { kind: 'cactus' } })).status, 402);
+  assert.equal(bought.json.coins, 38);
+  assert.equal((await call('/shop/buy', { method: 'POST', cookie, body: { kind: 'lantern' } })).status, 402);
 
   // placing: anywhere inside the room, never outside it, and only your own things
   const itemId = bought.json.item.id;

@@ -29,7 +29,7 @@ export default function Shop({ economy, finished, onBuy, onPlace, onClose }) {
           <div className="shop-coins" aria-label={`${economy.coins} coins`}><span className="coin" aria-hidden="true" />{economy.coins}</div>
           <button className="viewer-close static" onClick={onClose} aria-label="Close">×</button>
         </header>
-        <p className="shop-lead">Finish a book to earn coins (10 to 25 each, once per book). Spend them here, then place your plants and treasures <b>anywhere</b> in the library.{finished === 0 && ' Mark a book as finished to earn your first coins.'}</p>
+        <p className="shop-lead">Every book you finish earns 5 to 10 coins, once per book. These are rewards to work towards: save up, then place your plants and treasures <b>anywhere</b> in the library.{finished === 0 && ' Mark a book as finished to earn your first coins.'}</p>
         <div className="seg shop-tabs">
           {TABS.map(([k, label]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}{k === 'mine' && mine.length ? ` (${mine.length})` : ''}</button>)}
         </div>

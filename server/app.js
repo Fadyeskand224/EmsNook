@@ -159,7 +159,7 @@ export function createApp({ db, prod = false, distDir = null, allowedOrigins = [
   const balanceOf = async (userId) => {
     const earned = await db.get('SELECT COALESCE(SUM(amount), 0) AS n FROM coin_log WHERE user_id = ?', [userId]);
     const spent = await db.get('SELECT COALESCE(SUM(price), 0) AS n FROM items WHERE user_id = ?', [userId]);
-    return earned.n - spent.n;
+    return Math.max(0, earned.n - spent.n);
   };
   // Called when a book becomes "read". Each book (by work) pays out once, ever, so toggling or re-adding it earns nothing more.
   const payForBook = async (userId, workKey, pages) => {
